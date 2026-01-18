@@ -18,6 +18,7 @@
 #![allow(clippy::pedantic)]
 #![allow(clippy::nursery)]
 #![allow(clippy::all)]
+// Common allowances for FFI bindings
 #![allow(clippy::identity_op)]
 #![allow(clippy::erasing_op)]
 #![allow(clippy::cast_sign_loss)]
@@ -38,7 +39,6 @@
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::upper_case_acronyms)]
 #![allow(clippy::missing_panics_doc)]
-#![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::option_if_let_else)]
 #![allow(clippy::return_self_not_must_use)]
 #![cfg_attr(all(clippy, test), allow(clippy::cyclomatic_complexity))]

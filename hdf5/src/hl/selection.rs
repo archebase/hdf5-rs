@@ -870,19 +870,13 @@ impl Selection {
     }
 
     pub fn is_points(&self) -> bool {
-        if let Self::Points(ref points) = self {
-            points.shape() != [0, 0]
-        } else {
-            false
-        }
+        let Self::Points(ref points) = self else { return false };
+        points.shape() != [0, 0]
     }
 
     pub fn is_none(&self) -> bool {
-        if let Self::Points(points) = self {
-            points.shape() == [0, 0]
-        } else {
-            false
-        }
+        let Self::Points(points) = self else { return false };
+        points.shape() == [0, 0]
     }
 
     pub fn is_hyperslab(&self) -> bool {

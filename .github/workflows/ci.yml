@@ -29,7 +29,7 @@ jobs:
           - {command: clippy, rust: stable}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
         with: {toolchain: '${{matrix.rust}}', components: 'rustfmt, clippy'}
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -64,7 +64,7 @@ jobs:
           - {version: hdf5-mpi, mpi: true}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -109,7 +109,7 @@ jobs:
         shell: bash -l {0}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -146,7 +146,7 @@ jobs:
           - {os: macos, rust: stable}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -173,7 +173,7 @@ jobs:
           - {mpi: openmpi, rust: stable}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -205,7 +205,7 @@ jobs:
         version: ["1.8", "1.10", "1.12", "1.14"]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust (${{matrix.rust}})
         uses: dtolnay/rust-toolchain@stable
@@ -251,7 +251,7 @@ jobs:
   #       rust: [stable]
   #   steps:
   #     - name: Checkout repository
-  #       uses: actions/checkout@v3
+  #       uses: actions/checkout@v4
   #       with: {submodules: true}
   #     - name: Install Rust (${{matrix.rust}})
   #       uses: dtolnay/rust-toolchain@stable
@@ -275,11 +275,11 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: "1.70"}
+        with: {toolchain: "1.92"}
       - name: Build and test all crates
         run:
           cargo test --workspace -vv --features=hdf5-sys/static,hdf5-sys/zlib --exclude=hdf5-derive
@@ -289,7 +289,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Checkout repository
-  #       uses: actions/checkout@v3
+  #       uses: actions/checkout@v4
   #       with: {submodules: true}
   #     - name: Install Rust
   #       uses: dtolnay/rust-toolchain@stable
@@ -307,7 +307,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: {submodules: true}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

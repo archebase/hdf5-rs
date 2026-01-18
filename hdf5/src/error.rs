@@ -634,11 +634,10 @@ impl H5Error {
 
     /// Obtain the current HDF5 error stack and wrap it in an H5Error.
     pub fn query() -> Self {
-        if let Ok(stack) = ErrorStack::from_current() {
-            Self::hdf5_error(stack)
-        } else {
-            Self::internal("Could not get error stack")
-        }
+        let Ok(stack) = ErrorStack::from_current() else {
+            return Self::internal("Could not get error stack");
+        };
+        Self::hdf5_error(stack)
     }
 }
 

@@ -5,7 +5,7 @@ default-members = ["hdf5", "hdf5-types", "hdf5-derive", "hdf5-sys"]
 
 [workspace.package]
 version = "0.8.1" # !V
-rust-version = "1.88"
+rust-version = "1.92"
 authors = [
     "Ivan Smirnov <aldanor@users.noreply.github.com>",
     "Magnus Ulimoen <mulimoen@users.noreply.github.com>",

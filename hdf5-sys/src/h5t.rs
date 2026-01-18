@@ -1,4 +1,5 @@
 //! Creating and manipulating datatypes which describe elements of a dataset
+#![allow(clippy::derivable_impls)]
 use std::mem;
 
 pub use self::H5T_bkg_t::*;

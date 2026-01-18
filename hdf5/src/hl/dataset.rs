@@ -402,11 +402,7 @@ impl DatasetBuilderInner {
     }
 
     fn compute_chunk_shape(&self, dtype: &Datatype, extents: &Extents) -> Result<Option<Vec<Ix>>> {
-        let extents = if let Extents::Simple(extents) = extents {
-            extents
-        } else {
-            return Ok(None);
-        };
+        let Extents::Simple(extents) = extents else { return Ok(None) };
         let has_filters = self.dcpl_builder.has_filters()
             || self.dcpl_base.as_ref().map_or(false, DatasetCreate::has_filters);
         let chunking_required = has_filters || extents.is_resizable();
@@ -434,21 +430,20 @@ impl DatasetBuilderInner {
                 None
             }
         };
-        if let Some(ref chunk) = chunk_shape {
-            let ndim = extents.ndim();
-            ensure!(ndim != 0, "Chunking cannot be enabled for 0-dim datasets");
-            ensure!(ndim == chunk.len(), "Expected chunk ndim {}, got {}", ndim, chunk.len());
-            let chunk_size = chunk.iter().product::<usize>();
-            ensure!(chunk_size > 0, "All chunk dimensions must be positive, got {:?}", chunk);
-            let dims_ok = extents.iter().zip(chunk).all(|(e, c)| e.max.is_none() || *c <= e.dim);
-            let no_extent = extents.size() == 0;
-            ensure!(
-                dims_ok || no_extent,
-                "Chunk dimensions ({:?}) exceed data shape ({:?})",
-                chunk,
-                extents
-            );
-        }
+        let Some(ref chunk) = chunk_shape else { return Ok(chunk_shape) };
+        let ndim = extents.ndim();
+        ensure!(ndim != 0, "Chunking cannot be enabled for 0-dim datasets");
+        ensure!(ndim == chunk.len(), "Expected chunk ndim {}, got {}", ndim, chunk.len());
+        let chunk_size = chunk.iter().product::<usize>();
+        ensure!(chunk_size > 0, "All chunk dimensions must be positive, got {:?}", chunk);
+        let dims_ok = extents.iter().zip(chunk).all(|(e, c)| e.max.is_none() || *c <= e.dim);
+        let no_extent = extents.size() == 0;
+        ensure!(
+            dims_ok || no_extent,
+            "Chunk dimensions ({:?}) exceed data shape ({:?})",
+            chunk,
+            extents
+        );
         Ok(chunk_shape)
     }
 

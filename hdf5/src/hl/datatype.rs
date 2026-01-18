@@ -202,17 +202,14 @@ impl Datatype {
 
     pub(crate) fn ensure_convertible(&self, dst: &Self, required: Conversion) -> Result<()> {
         // TODO: more detailed error messages after Debug/Display are implemented for Datatype
-        if let Some(conv) = self.conv_path(dst) {
-            ensure!(
-                conv <= required,
-                "{} conversion path required; available: {} conversion",
-                required,
-                conv
-            );
-            Ok(())
-        } else {
-            fail!("no conversion paths found")
-        }
+        let Some(conv) = self.conv_path(dst) else { fail!("no conversion paths found") };
+        ensure!(
+            conv <= required,
+            "{} conversion path required; available: {} conversion",
+            required,
+            conv
+        );
+        Ok(())
     }
 
     pub fn to_descriptor(&self) -> Result<TypeDescriptor> {
