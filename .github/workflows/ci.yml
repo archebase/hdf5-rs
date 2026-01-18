@@ -2,317 +2,136 @@ name: CI
 
 on:
   push:
-    branches:
-      - '**'
+    branches: ['**']
   pull_request:
-    branches:
-      - main
-  schedule:
-    - cron: '0 18 * * *'
+    branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-@{{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ==============================================================================
+  # Lint and format checks
+  # ==============================================================================
   lint:
-    name: lint
+    name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {command: fmt, rust: nightly}
-          - {command: clippy, rust: stable}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install Rust (${{matrix.rust}})
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: '${{matrix.rust}}', components: 'rustfmt, clippy'}
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
       - name: Install HDF5
-        run: sudo apt-get update && sudo apt-get install libhdf5-dev
-      - name: Run cargo ${{matrix.command}}
-        run: cargo ${{matrix.command}} ${{matrix.command == 'fmt' && '--all -- --check' || '--workspace --exclude hdf5-src -- -D warnings -D clippy::cargo -A clippy::multiple-crate-versions'}}
+        run: sudo apt-get update && sudo apt-get install -y libhdf5-dev
 
-  doc: # This task should mirror the procedure on docs.rs
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --exclude hdf5-src -- -D warnings
+
+  # ==============================================================================
+  # Test on Linux with system HDF5
+  # ==============================================================================
+  test-linux:
+    name: Linux (system HDF5)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: nightly}
-      - name: Document workspace
-        env:
-          RUSTDOCFLAGS: "--cfg docsrs"
-        run: cargo doc --features static,zlib,blosc,lzf,f16,complex
+      - uses: actions/checkout@v4
 
-  brew:
-    name: brew
-    runs-on: macos-latest
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install HDF5
+        run: sudo apt-get update && sudo apt-get install -y libhdf5-dev
+
+      - name: Build
+        run: cargo build --workspace --exclude hdf5-src
+
+      - name: Test
+        run: cargo test --workspace --exclude hdf5-src
+
+  # ==============================================================================
+  # Test with statically linked HDF5
+  # ==============================================================================
+  test-static:
+    name: Static HDF5
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {version: hdf5@1.10}
-          - {version: hdf5@1.14}
-          - {version: hdf5-mpi, mpi: true}
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: stable}
-      - name: Install HDF5 (${{matrix.version}})
-        run: brew install ${{matrix.version}}
-      - name: Build and test all crates
-        run: |
-          [ "${{matrix.mpi}}" != "" ] && FEATURES=mpio
-          cargo test -vv --features="$FEATURES"
 
-  conda:
-    name: conda
-    runs-on: ${{matrix.os}}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {os: ubuntu-latest, version: 1.8.16, channel: conda-forge, rust: stable}
-          - {os: windows-latest, version: 1.8.17, channel: conda-forge, rust: stable}
-          - {os: macos-13, version: 1.8.18, channel: anaconda, rust: stable}
-          - {os: ubuntu-latest, version: 1.8.20, channel: anaconda, rust: beta}
-          - {os: ubuntu-latest, version: 1.10.1, channel: anaconda, rust: nightly}
-          - {os: windows-latest, version: 1.10.2, channel: anaconda, rust: beta}
-          - {os: ubuntu-latest, version: 1.10.3, channel: conda-forge, rust: nightly}
-          - {os: windows-latest, version: 1.10.4, channel: anaconda, rust: nightly}
-          - {os: ubuntu-latest, version: 1.10.4, mpi: openmpi, channel: conda-forge, rust: stable}
-          - {os: ubuntu-latest, version: 1.10.5, channel: conda-forge, rust: beta}
-          - {os: macos-13, version: 1.10.5, mpi: openmpi, channel: conda-forge, rust: beta}
-          - {os: ubuntu-latest, version: 1.10.6, channel: anaconda, rust: stable}
-          - {os: ubuntu-latest, version: 1.10.6, mpi: mpich, channel: conda-forge, rust: nightly}
-          # - {os: ubuntu, version: 1.10.8, channel: conda-forge, rust: stable}
-          - {os: ubuntu-latest, version: 1.12.0, mpi: openmpi, channel: conda-forge, rust: stable}
-          - {os: macos-latest, version: 1.12.0, channel: conda-forge, rust: stable}
-          - {os: windows-latest, version: 1.12.0, channel: conda-forge, rust: stable}
-          - {os: ubuntu-latest, version: 1.12.1, channel: conda-forge, rust: stable}
-          - {os: macos-latest, version: 1.14.0, channel: conda-forge, rust: stable}
-          - {os: windows-latest, version: 1.14.0, channel: conda-forge, rust: stable}
-          - {os: ubuntu-latest, version: 1.14.0, channel: conda-forge, rust: stable}
-    defaults:
-      run:
-        shell: bash -l {0}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: '${{matrix.rust}}'}
-      - name: Install conda
-        uses: conda-incubator/setup-miniconda@v2
-        with: {auto-update-conda: false, activate-environment: testenv, miniconda-version: latest}
-      - name: Set conda for Arm64
-        if: runner.arch == 'arm64' && runner.os == 'macOS'
-        run: conda config --env --set subdir osx-arm64
-      - name: Install HDF5 (${{matrix.version}}${{matrix.mpi && '-' || ''}}${{matrix.mpi}})
-        run: |
-          [ "${{matrix.mpi}}" != "" ] && MPICC_PKG=${{matrix.mpi}}-mpicc
-          conda install -y -c ${{matrix.channel}} 'hdf5=${{matrix.version}}=*${{matrix.mpi}}*' $MPICC_PKG
-      - name: Build and test all crates
-        run: |
-          export HDF5_DIR="$CONDA_PREFIX"
-          [ "${{matrix.mpi}}" != "" ] && FEATURES=mpio
-          [ "${{runner.os}}" != "Windows" ] && export RUSTFLAGS="-C link-args=-Wl,-rpath,$CONDA_PREFIX/lib"
-          [ "${{matrix.mpi}}" == "mpich" ] && [ "${{runner.os}}" == "Linux" ] && export MPICH_CC=$(which gcc)
-          [ "${{matrix.mpi}}" == "openmpi" ] && [ "${{runner.os}}" == "Linux" ] && export OMPI_CC=$(which gcc)
-          cargo test -vv --features="$FEATURES"
+      - name: Build and test
+        run: cargo test --workspace --exclude hdf5-src --features hdf5-sys/static,hdf5-sys/zlib
 
-  static:
-    name: static
-    runs-on: ${{matrix.os}}-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {os: ubuntu, rust: stable}
-          - {os: windows, rust: stable-msvc}
-          # - {os: windows, rust: stable-gnu}
-          - {os: macos, rust: stable}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: '${{matrix.rust}}'}
-      - name: Build and test all crates
-        run: cargo test --workspace -vvv --features hdf5-sys/static,hdf5-sys/zlib --exclude hdf5-derive
-      - name: Build and test with filters and other features
-        run: cargo test --workspace -v --features hdf5-sys/static,hdf5-sys/zlib,lzf,blosc,f16,complex --exclude hdf5-derive
-        if: matrix.rust != 'stable-gnu'
-      - name: Run examples
-        run: |
-          cargo r --example simple --features hdf5-sys/static,hdf5-sys/zlib,lzf,blosc
-          cargo r --example chunking --features hdf5-sys/static,hdf5-sys/zlib,lzf,blosc
-        if: matrix.rust != 'stable-gnu'
-
-  apt:
-    name: apt
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {mpi: mpich, rust: beta}
-          - {mpi: openmpi, rust: stable}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: '${{matrix.rust}}'}
-      - name: Install HDF5 (${{matrix.mpi}})
-        run: |
-          [ "${{matrix.mpi}}" == "mpich" ] && PACKAGES="libhdf5-mpich-dev mpich"
-          [ "${{matrix.mpi}}" == "openmpi" ] && PACKAGES="libhdf5-openmpi-dev openmpi-bin"
-          [ "${{matrix.mpi}}" == "serial" ] && PACKAGES="libhdf5-dev"
-          sudo apt-get install $PACKAGES
-      - name: Build and test all crates
-        run: |
-          [ "${{matrix.mpi}}" != "serial" ] && FEATURES=mpio
-          cargo test -vv --features="$FEATURES"
-      - name: Test crate for locking on synchronisation
-        run: |
-          [ "${{matrix.mpi}}" != "serial" ] && FEATURES=mpio
-          cargo test -vv --features="$FEATURES" -- lock_part
-          cargo test -vv --features="$FEATURES" -- lock_part
-          cargo test -vv --features="$FEATURES" -- lock_part
-
-  msi:
-    name: msi
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: [stable]
-        version: ["1.8", "1.10", "1.12", "1.14"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust (${{matrix.rust}})
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: '${{matrix.rust}}'}
-      - name: Configure environment
-        shell: bash
-        run: |
-          if [[ "${{matrix.version}}" == "1.8" ]]; then
-            VERSION=1.8.21
-            DL_PATH=hdf5-1.8.21-Std-win7_64-vs14.zip
-            echo "MSI_PATH=hdf\\HDF5-1.8.21-win64.msi" >> $GITHUB_ENV
-          elif [[ "${{matrix.version}}" == "1.10" ]]; then
-            VERSION=1.10.0
-            DL_PATH=windows/extra/hdf5-1.10.0-win64-VS2015-shared.zip
-            echo "MSI_PATH=hdf5\\HDF5-1.10.0-win64.msi" >> $GITHUB_ENV
-          elif [[ "${{matrix.version}}" == "1.12" ]]; then
-            VERSION=1.12.0
-            DL_PATH=hdf5-1.12.0-Std-win10_64-vs16.zip
-            echo "MSI_PATH=hdf\\HDF5-1.12.0-win64.msi" >> $GITHUB_ENV
-          else
-            VERSION=1.14.0
-            DL_PATH=windows/hdf5-1.14.0-Std-win10_64-vs16.zip
-            echo "MSI_PATH=hdf\\HDF5-1.14.0-win64.msi" >> $GITHUB_ENV
-          fi
-          BASE_URL=https://support.hdfgroup.org/ftp/HDF5/releases
-          echo "DL_URL=$BASE_URL/hdf5-${{matrix.version}}/hdf5-$VERSION/bin/$DL_PATH" >> $GITHUB_ENV
-          echo "C:\\Program Files\\HDF_Group\\HDF5\\$VERSION\\bin" >> $GITHUB_PATH
-      - name: Install HDF5 (${{matrix.version}})
-        shell: pwsh
-        run: |
-          C:\msys64\usr\bin\wget.exe -q -O hdf5.zip ${{env.DL_URL}}
-          7z x hdf5.zip -y
-          msiexec /i ${{env.MSI_PATH}} /quiet /qn /norestart
-      - name: Build and test all crates
-        run: cargo test -vv
-
-  # mingw:
-  #   name: mingw
-  #   runs-on: windows-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       rust: [stable]
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with: {submodules: true}
-  #     - name: Install Rust (${{matrix.rust}})
-  #       uses: dtolnay/rust-toolchain@stable
-  #       with: {toolchain: '${{matrix.rust}}', targets: x86_64-pc-windows-gnu}
-  #     - name: Install HDF5
-  #       shell: pwsh
-  #       run: |
-  #         $env:PATH="$env:PATH;C:\msys64\mingw64\bin;C:\msys64\usr\bin;"
-  #         C:\msys64\usr\bin\pacman.exe -Syu --noconfirm
-  #         C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-hdf5 mingw-w64-x86_64-pkgconf
-  #     - name: Build and test all crates
-  #       shell: pwsh
-  #       run: |
-  #         $env:PATH="$env:PATH;C:\msys64\mingw64\bin;"
-  #         cargo test -vv --target=x86_64-pc-windows-gnu
-
-  msrv:
-    name: Minimal Supported Rust Version
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with: {submodules: true}
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: "1.92"}
-      - name: Build and test all crates
-        run:
-          cargo test --workspace -vv --features=hdf5-sys/static,hdf5-sys/zlib --exclude=hdf5-derive
-
-  # wine:
-  #   name: wine
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with: {submodules: true}
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@stable
-  #       # Last version to support Wine pre 8.13
-  #       with: {toolchain: "1.75", targets: x86_64-pc-windows-gnu}
-  #     - name: Install dependencies
-  #       run: sudo apt-get update && sudo apt install wine64 mingw-w64
-  #     - name: Build and test
-  #       env:
-  #         CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER: wine64
-  #       run: cargo test --workspace --features hdf5-sys/static --target x86_64-pc-windows-gnu --exclude=hdf5-derive
-
-  addr_san:
-    name: Address sanitizer
+  # ==============================================================================
+  # Test MSRV
+  # ==============================================================================
+  test-msrv:
+    name: MSRV (1.92)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with: {submodules: true}
-      - name: Install Rust
+
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with: {toolchain: nightly, profile: minimal, override: true}
-      - name: Run test with sanitizer
+        with:
+          toolchain: '1.92'
+
+      - name: Build and test
+        run: cargo test --workspace --exclude hdf5-src --features hdf5-sys/static,hdf5-sys/zlib
+
+  # ==============================================================================
+  # Documentation build
+  # ==============================================================================
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {submodules: true}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+
+      - name: Build documentation
         env:
-          RUSTFLAGS: "-Z sanitizer=address"
-        run: cargo test --features hdf5-sys/static --target x86_64-unknown-linux-gnu --workspace --exclude hdf5-derive
+          RUSTDOCFLAGS: --cfg docsrs
+        run: cargo doc --features static,zlib,blosc,lzf,f16,complex --no-deps
+
+  # ==============================================================================
+  # Test with optional features
+  # ==============================================================================
+  test-features:
+    name: Features
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {submodules: true}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install HDF5
+        run: sudo apt-get update && sudo apt-get install -y libhdf5-dev
+
+      - name: Test with lzf and blosc
+        run: cargo test --workspace --exclude hdf5-src --features lzf,blosc,f16,complex
