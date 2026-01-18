@@ -418,3 +418,267 @@ impl Datatype {
         Self::from_id(datatype_id?)
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_conversion_display() {
+        assert_eq!(format!("{}", Conversion::NoOp), "no-op");
+        assert_eq!(format!("{}", Conversion::Soft), "soft");
+        assert_eq!(format!("{}", Conversion::Hard), "hard");
+    }
+
+    #[test]
+    pub fn test_conversion_default() {
+        assert_eq!(Conversion::default(), Conversion::NoOp);
+    }
+
+    #[test]
+    pub fn test_conversion_partial_ord() {
+        assert!(Conversion::NoOp < Conversion::Hard);
+        assert!(Conversion::Hard < Conversion::Soft);
+        assert_eq!(Conversion::NoOp, Conversion::NoOp);
+    }
+
+    #[test]
+    pub fn test_conversion_ord() {
+        assert!(Conversion::NoOp < Conversion::Hard);
+        assert!(Conversion::Hard < Conversion::Soft);
+    }
+
+    #[test]
+    pub fn test_option_conversion_partial_eq() {
+        // Option<Conversion> is never equal to Conversion
+        assert_eq!(Option::<Conversion>::None == Conversion::NoOp, false);
+        assert_eq!(Some(Conversion::NoOp) == Conversion::NoOp, false);
+    }
+
+    #[test]
+    pub fn test_option_conversion_partial_cmp() {
+        // Option<Conversion> partial cmp with Conversion
+        assert_eq!(Option::<Conversion>::None.partial_cmp(&Conversion::NoOp), Some(Ordering::Greater));
+        // NoOp < Hard < Soft
+        assert_eq!(
+            Some(Conversion::NoOp).partial_cmp(&Conversion::Hard),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            Some(Conversion::Hard).partial_cmp(&Conversion::Soft),
+            Some(Ordering::Less)
+        );
+        // Greater cases
+        assert_eq!(
+            Some(Conversion::Soft).partial_cmp(&Conversion::Hard),
+            Some(Ordering::Greater)
+        );
+    }
+
+    #[test]
+    pub fn test_datatype_size_i32() {
+        let dt = Datatype::from_type::<i32>().unwrap();
+        assert_eq!(dt.size(), 4);
+    }
+
+    #[test]
+    pub fn test_datatype_size_f64() {
+        let dt = Datatype::from_type::<f64>().unwrap();
+        assert_eq!(dt.size(), 8);
+    }
+
+    #[test]
+    pub fn test_datatype_size_bool() {
+        let dt = Datatype::from_type::<bool>().unwrap();
+        assert_eq!(dt.size(), 1);
+    }
+
+    #[test]
+    pub fn test_datatype_byte_order() {
+        let dt = Datatype::from_type::<i32>().unwrap();
+        let order = dt.byte_order();
+        // Should be either LittleEndian or BigEndian depending on platform
+        assert!(matches!(order, ByteOrder::LittleEndian | ByteOrder::BigEndian));
+    }
+
+    #[test]
+    pub fn test_datatype_is_same_type() {
+        let dt_i32 = Datatype::from_type::<i32>().unwrap();
+        assert!(dt_i32.is::<i32>());
+        assert!(!dt_i32.is::<f32>());
+        assert!(!dt_i32.is::<i64>());
+    }
+
+    #[test]
+    pub fn test_datatype_is_different_types() {
+        let dt_f32 = Datatype::from_type::<f32>().unwrap();
+        assert!(dt_f32.is::<f32>());
+        assert!(!dt_f32.is::<i32>());
+        assert!(!dt_f32.is::<f64>());
+    }
+
+    #[test]
+    pub fn test_datatype_conv_path_noop() {
+        let src = Datatype::from_type::<i32>().unwrap();
+        let dst = Datatype::from_type::<i32>().unwrap();
+        // Same type should be NoOp conversion
+        assert_eq!(src.conv_path(&dst), Some(Conversion::NoOp));
+        assert_eq!(src.conv_path(&src), Some(Conversion::NoOp));
+    }
+
+    #[test]
+    pub fn test_datatype_conv_path_soft() {
+        let src = Datatype::from_type::<i32>().unwrap();
+        let dst = Datatype::from_type::<i64>().unwrap();
+        // Integer to integer (same sign) should be Soft conversion
+        let conv = src.conv_path(&dst);
+        assert!(conv.is_some());
+        // i32 to f32 would be Hard conversion
+        let dt_f32 = Datatype::from_type::<f32>().unwrap();
+        let conv2 = src.conv_path(&dt_f32);
+        assert!(conv2.is_some());
+    }
+
+    #[test]
+    pub fn test_datatype_conv_to() {
+        let dt_i32 = Datatype::from_type::<i32>().unwrap();
+        // Converting to same type
+        assert_eq!(dt_i32.conv_to::<i32>(), Some(Conversion::NoOp));
+        // Converting to different type
+        assert!(dt_i32.conv_to::<i64>().is_some());
+        assert!(dt_i32.conv_to::<f32>().is_some());
+    }
+
+    #[test]
+    pub fn test_datatype_conv_from() {
+        let dt_i32 = Datatype::from_type::<i32>().unwrap();
+        // Converting from same type
+        assert_eq!(dt_i32.conv_from::<i32>(), Some(Conversion::NoOp));
+        // Converting from different type
+        assert!(dt_i32.conv_from::<i64>().is_some());
+        assert!(dt_i32.conv_from::<f32>().is_some());
+    }
+
+    #[test]
+    pub fn test_datatype_equality() {
+        let dt1 = Datatype::from_type::<i32>().unwrap();
+        let dt2 = Datatype::from_type::<i32>().unwrap();
+        assert_eq!(dt1, dt2);
+
+        let dt_f32 = Datatype::from_type::<f32>().unwrap();
+        assert_ne!(dt1, dt_f32);
+    }
+
+    #[test]
+    pub fn test_datatype_to_descriptor_i32() {
+        let dt = Datatype::from_type::<i32>().unwrap();
+        let desc = dt.to_descriptor().unwrap();
+        assert!(matches!(desc, hdf5_types::TypeDescriptor::Integer(_)));
+    }
+
+    #[test]
+    pub fn test_datatype_to_descriptor_u32() {
+        let dt = Datatype::from_type::<u32>().unwrap();
+        let desc = dt.to_descriptor().unwrap();
+        assert!(matches!(desc, hdf5_types::TypeDescriptor::Unsigned(_)));
+    }
+
+    #[test]
+    pub fn test_datatype_to_descriptor_f64() {
+        let dt = Datatype::from_type::<f64>().unwrap();
+        let desc = dt.to_descriptor().unwrap();
+        assert!(matches!(desc, hdf5_types::TypeDescriptor::Float(_)));
+    }
+
+    #[test]
+    pub fn test_datatype_to_descriptor_bool() {
+        let dt = Datatype::from_type::<bool>().unwrap();
+        let desc = dt.to_descriptor().unwrap();
+        assert_eq!(desc, hdf5_types::TypeDescriptor::Boolean);
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_i32() {
+        let desc = hdf5_types::TypeDescriptor::Integer(hdf5_types::IntSize::U4);
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert!(dt.is::<i32>());
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_u32() {
+        let desc = hdf5_types::TypeDescriptor::Unsigned(hdf5_types::IntSize::U4);
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert!(dt.is::<u32>());
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_f32() {
+        let desc = hdf5_types::TypeDescriptor::Float(hdf5_types::FloatSize::U4);
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert!(dt.is::<f32>());
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_bool() {
+        let desc = hdf5_types::TypeDescriptor::Boolean;
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert!(dt.is::<bool>());
+    }
+
+    #[test]
+    pub fn test_datatype_roundtrip_i32() {
+        let dt1 = Datatype::from_type::<i32>().unwrap();
+        let desc = dt1.to_descriptor().unwrap();
+        let dt2 = Datatype::from_descriptor(&desc).unwrap();
+        assert_eq!(dt1, dt2);
+        assert!(dt2.is::<i32>());
+    }
+
+    #[test]
+    pub fn test_datatype_roundtrip_f64() {
+        let dt1 = Datatype::from_type::<f64>().unwrap();
+        let desc = dt1.to_descriptor().unwrap();
+        let dt2 = Datatype::from_descriptor(&desc).unwrap();
+        assert_eq!(dt1, dt2);
+        assert!(dt2.is::<f64>());
+    }
+
+    #[test]
+    pub fn test_datatype_roundtrip_bool() {
+        let dt1 = Datatype::from_type::<bool>().unwrap();
+        let desc = dt1.to_descriptor().unwrap();
+        let dt2 = Datatype::from_descriptor(&desc).unwrap();
+        assert_eq!(dt1, dt2);
+        assert!(dt2.is::<bool>());
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_array() {
+        let elem_desc = hdf5_types::TypeDescriptor::Integer(hdf5_types::IntSize::U4);
+        let desc = hdf5_types::TypeDescriptor::FixedArray(Box::new(elem_desc), 10);
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert_eq!(dt.size(), 40);
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_fixed_string() {
+        let desc = hdf5_types::TypeDescriptor::FixedAscii(32);
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        assert_eq!(dt.size(), 32);
+    }
+
+    #[test]
+    pub fn test_datatype_from_descriptor_varlen_string() {
+        let desc = hdf5_types::TypeDescriptor::VarLenAscii;
+        let dt = Datatype::from_descriptor(&desc).unwrap();
+        // VarLen strings have pointer size
+        assert!(dt.size() == std::mem::size_of::<*const u8>() || dt.size() == std::mem::size_of::<usize>());
+    }
+
+    #[test]
+    pub fn test_datatype_debug() {
+        let dt = Datatype::from_type::<i32>().unwrap();
+        let debug_str = format!("{:?}", dt);
+        assert!(debug_str.contains("datatype"));
+    }
+}

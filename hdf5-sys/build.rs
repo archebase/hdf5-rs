@@ -80,6 +80,7 @@ fn is_msvc() -> bool {
     std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc"
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 struct RuntimeError(String);
 

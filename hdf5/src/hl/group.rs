@@ -323,14 +323,18 @@ impl Group {
                 let vtable = unsafe { vtable.as_mut().expect("iter_visit: null op_data ptr") };
                 unsafe { name.as_ref().expect("iter_visit: null name ptr") };
                 let name = unsafe { std::ffi::CStr::from_ptr(name) };
-                let info = unsafe { info.as_ref().expect("iter_vist: null info ptr") };
+                let info = unsafe { info.as_ref().expect("iter_visit: null info ptr") };
                 let handle = Handle::try_borrow(id).expect("iter_visit: unable to create a handle");
                 let group = Group::from_handle(handle);
                 let ret =
                     (vtable.f)(&group, name.to_string_lossy().as_ref(), info.into(), vtable.d);
                 i32::from(!ret)
             })
-            .unwrap_or(-1)
+            .unwrap_or_else(|_| {
+                // Log the panic for debugging purposes before returning error code
+                eprintln!("Panic in HDF5 group iteration callback (iter_visit)");
+                -1
+            })
         }
 
         let callback_fn: H5L_iterate_t = Some(callback::<F, G>);

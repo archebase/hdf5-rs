@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use std::mem;
-
-use lazy_static::lazy_static;
+use std::ops::Deref;
+use std::sync::OnceLock;
 
 #[cfg(feature = "have-direct")]
 use hdf5_sys::h5fd::H5FD_direct_init;
@@ -24,7 +24,7 @@ pub struct H5GlobalConstant(
 impl std::ops::Deref for H5GlobalConstant {
     type Target = hdf5_sys::h5i::hid_t;
     fn deref(&self) -> &Self::Target {
-        lazy_static::initialize(&crate::sync::LIBRARY_INIT);
+        crate::sync::ensure_library_init();
         cfg_if::cfg_if! {
             if #[cfg(msvc_dll_indirection)] {
                 let dll_ptr = self.0 as *const usize;
@@ -322,45 +322,60 @@ link_hid!(H5E_CANTCONVERT, h5e::H5E_CANTCONVERT);
 link_hid!(H5E_BADSIZE, h5e::H5E_BADSIZE);
 
 // H5R constants
-lazy_static! {
-    pub static ref H5R_OBJ_REF_BUF_SIZE: usize = mem::size_of::<haddr_t>();
-    pub static ref H5R_DSET_REG_REF_BUF_SIZE: usize = mem::size_of::<haddr_t>() + 4;
+pub fn h5r_obj_ref_buf_size() -> usize {
+    mem::size_of::<haddr_t>()
 }
 
-// File drivers
-lazy_static! {
-    pub static ref H5FD_CORE: hid_t = h5lock!(H5FD_core_init());
-    pub static ref H5FD_SEC2: hid_t = h5lock!(H5FD_sec2_init());
-    pub static ref H5FD_STDIO: hid_t = h5lock!(H5FD_stdio_init());
-    pub static ref H5FD_FAMILY: hid_t = h5lock!(H5FD_family_init());
-    pub static ref H5FD_LOG: hid_t = h5lock!(H5FD_log_init());
-    pub static ref H5FD_MULTI: hid_t = h5lock!(H5FD_multi_init());
+pub fn h5r_dset_reg_ref_buf_size() -> usize {
+    mem::size_of::<haddr_t>() + 4
 }
+
+// File drivers - use OnceLock for lazy initialization with Deref for * operator support
+macro_rules! h5fd_driver_static {
+    ($name:ident, $init:ident) => {
+        pub struct $name {
+            driver_id: OnceLock<hid_t>,
+        }
+
+        impl $name {
+            pub const fn new() -> Self {
+                Self { driver_id: OnceLock::new() }
+            }
+        }
+
+        impl Deref for $name {
+            type Target = hid_t;
+            fn deref(&self) -> &Self::Target {
+                self.driver_id.get_or_init(|| h5lock!($init()))
+            }
+        }
+
+        pub static $name: $name = $name::new();
+    };
+}
+
+h5fd_driver_static!(H5FD_CORE, H5FD_core_init);
+h5fd_driver_static!(H5FD_SEC2, H5FD_sec2_init);
+h5fd_driver_static!(H5FD_STDIO, H5FD_stdio_init);
+h5fd_driver_static!(H5FD_FAMILY, H5FD_family_init);
+h5fd_driver_static!(H5FD_LOG, H5FD_log_init);
+h5fd_driver_static!(H5FD_MULTI, H5FD_multi_init);
 
 // MPI-IO file driver
 #[cfg(feature = "have-parallel")]
-lazy_static! {
-    pub static ref H5FD_MPIO: hid_t = h5lock!(H5FD_mpio_init());
-}
+h5fd_driver_static!(H5FD_MPIO, H5FD_mpio_init);
 #[cfg(not(feature = "have-parallel"))]
-lazy_static! {
-    pub static ref H5FD_MPIO: hid_t = H5I_INVALID_HID;
-}
+pub static H5FD_MPIO: hid_t = H5I_INVALID_HID;
 
 // Direct VFD
 #[cfg(feature = "have-direct")]
-lazy_static! {
-    pub static ref H5FD_DIRECT: hid_t = h5lock!(H5FD_direct_init());
-}
+h5fd_driver_static!(H5FD_DIRECT, H5FD_direct_init);
 #[cfg(not(feature = "have-direct"))]
-lazy_static! {
-    pub static ref H5FD_DIRECT: hid_t = H5I_INVALID_HID;
-}
+pub static H5FD_DIRECT: hid_t = H5I_INVALID_HID;
 
+// Windows VFD (aliases SEC2)
 #[cfg(target_os = "windows")]
-lazy_static! {
-    pub static ref H5FD_WINDOWS: hid_t = *H5FD_SEC2;
-}
+pub use H5FD_SEC2 as H5FD_WINDOWS;
 
 #[cfg(test)]
 mod tests {
@@ -369,12 +384,12 @@ mod tests {
     use hdf5_sys::{h5::haddr_t, h5i::H5I_INVALID_HID};
 
     use super::{
-        H5E_DATASET, H5E_ERR_CLS, H5P_LST_LINK_ACCESS_ID, H5P_ROOT, H5R_DSET_REG_REF_BUF_SIZE,
-        H5R_OBJ_REF_BUF_SIZE, H5T_IEEE_F32BE, H5T_NATIVE_INT,
+        h5r_dset_reg_ref_buf_size, h5r_obj_ref_buf_size, H5E_DATASET, H5E_ERR_CLS,
+        H5P_LST_LINK_ACCESS_ID, H5P_ROOT, H5T_IEEE_F32BE, H5T_NATIVE_INT,
     };
 
     #[test]
-    pub fn test_lazy_globals() {
+    pub fn test_once_lock_globals() {
         assert_ne!(*H5T_IEEE_F32BE, H5I_INVALID_HID);
         assert_ne!(*H5T_NATIVE_INT, H5I_INVALID_HID);
 
@@ -384,7 +399,7 @@ mod tests {
         assert_ne!(*H5E_ERR_CLS, H5I_INVALID_HID);
         assert_ne!(*H5E_DATASET, H5I_INVALID_HID);
 
-        assert_eq!(*H5R_OBJ_REF_BUF_SIZE, mem::size_of::<haddr_t>());
-        assert_eq!(*H5R_DSET_REG_REF_BUF_SIZE, mem::size_of::<haddr_t>() + 4);
+        assert_eq!(h5r_obj_ref_buf_size(), mem::size_of::<haddr_t>());
+        assert_eq!(h5r_dset_reg_ref_buf_size(), mem::size_of::<haddr_t>() + 4);
     }
 }

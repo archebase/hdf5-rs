@@ -1,7 +1,6 @@
 use std::fmt::{self, Display};
 use std::mem;
 use std::os::raw::c_void;
-use std::ptr;
 
 use crate::array::VarLenArray;
 use crate::string::{FixedAscii, FixedUnicode, VarLenAscii, VarLenUnicode};
@@ -236,7 +235,36 @@ impl TypeDescriptor {
     }
 }
 
+/// Types that can be stored and retrieved from HDF5 datasets.
+///
+/// # Safety
+///
+/// Implementers must ensure that:
+///
+/// 1. **Accurate Type Descriptor**: The `type_descriptor()` must accurately represent
+///    the memory layout of the type, including size, alignment, and field offsets.
+///
+/// 2. **Valid Memory Layout**: For compound types, all fields must have valid offsets
+///    matching the type's actual memory layout. The type must have a `repr(C)` or
+///    `repr(packed)` attribute to ensure consistent layout.
+///
+/// 3. **No Padding Issues**: The type must not have padding bytes that contain
+///    uninitialized data when read from HDF5. All padding should be explicitly
+///    initialized or the type should use `repr(packed)`.
+///
+/// 4. **Copy Safety**: The type must be `Copy` or must be safely copyable byte-for-byte.
+///    Types with custom `Drop` implementations or self-referential types must not
+///    implement this trait.
+///
+/// 5. **Enum Discriminants**: For enum types, the discriminant values must match
+///    the values described in the type descriptor.
+///
+/// Failure to uphold these invariants may result in undefined behavior, including
+/// memory corruption and segmentation faults.
 pub unsafe trait H5Type: 'static {
+    /// Returns the type descriptor for this type.
+    ///
+    /// The descriptor must accurately describe the memory layout of the type.
     fn type_descriptor() -> TypeDescriptor;
 }
 
@@ -282,22 +310,7 @@ unsafe impl H5Type for bool {
 }
 
 macro_rules! impl_tuple {
-    (@second $a:tt $b:tt) => ($b);
-
-    (@parse_fields [$($s:ident)*] $origin:ident $fields:ident | $t:ty $(,$tt:ty)*) => (
-        let &$($s)*(.., ref f, $(impl_tuple!(@second $tt _),)*) = unsafe { &*$origin };
-        let index = $fields.len();
-        $fields.push(CompoundField {
-            name: format!("{}", index),
-            ty: <$t as H5Type>::type_descriptor(),
-            offset: f as *const _ as _,
-            index,
-        });
-        impl_tuple!(@parse_fields [$($s)*] $origin $fields | $($tt),*);
-    );
-
-    (@parse_fields [$($s:ident)*] $origin:ident $fields:ident |) => ();
-
+    // Single element tuple
     ($t:ident) => (
         unsafe impl<$t> H5Type for ($t,) where $t: H5Type {
             #[inline]
@@ -312,23 +325,642 @@ macro_rules! impl_tuple {
         }
     );
 
+    // Multi-element tuples - delegate to impl_tuple_n
     ($t:ident, $($tt:ident),*) => (
+        impl_tuple_n!([$t, $($tt),*] 0);
+        impl_tuple!($($tt),*);
+    );
+}
+
+// Helper macro to implement H5Type for N-tuples using offset_of!
+macro_rules! impl_tuple_n {
+    // 2-tuple
+    ([$t0:ident, $t1:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t, $($tt),*> H5Type for ($t, $($tt),*)
-            where $t: H5Type, $($tt: H5Type),*
+        unsafe impl<$t0, $t1> H5Type for ($t0, $t1)
+            where $t0: H5Type, $t1: H5Type
         {
             fn type_descriptor() -> TypeDescriptor {
-                let origin: *const Self = ptr::null();
-                let mut fields = Vec::new();
-                impl_tuple!(@parse_fields [] origin fields | $t, $($tt),*);
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                ];
                 let size = mem::size_of::<Self>();
                 fields.sort_by_key(|f| f.offset);
                 TypeDescriptor::Compound(CompoundType { fields, size })
             }
         }
-
-        impl_tuple!($($tt),*);
-    );
+    };
+    // 3-tuple
+    ([$t0:ident, $t1:ident, $t2:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2> H5Type for ($t0, $t1, $t2)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 4-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3> H5Type for ($t0, $t1, $t2, $t3)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 5-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4> H5Type for ($t0, $t1, $t2, $t3, $t4)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 6-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 7-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 8-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                    CompoundField {
+                        name: "7".to_string(),
+                        ty: <$t7 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 7),
+                        index: 7,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 9-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                    CompoundField {
+                        name: "7".to_string(),
+                        ty: <$t7 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 7),
+                        index: 7,
+                    },
+                    CompoundField {
+                        name: "8".to_string(),
+                        ty: <$t8 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 8),
+                        index: 8,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 10-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                    CompoundField {
+                        name: "7".to_string(),
+                        ty: <$t7 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 7),
+                        index: 7,
+                    },
+                    CompoundField {
+                        name: "8".to_string(),
+                        ty: <$t8 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 8),
+                        index: 8,
+                    },
+                    CompoundField {
+                        name: "9".to_string(),
+                        ty: <$t9 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 9),
+                        index: 9,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 11-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident, $t10:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type, $t10: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                    CompoundField {
+                        name: "7".to_string(),
+                        ty: <$t7 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 7),
+                        index: 7,
+                    },
+                    CompoundField {
+                        name: "8".to_string(),
+                        ty: <$t8 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 8),
+                        index: 8,
+                    },
+                    CompoundField {
+                        name: "9".to_string(),
+                        ty: <$t9 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 9),
+                        index: 9,
+                    },
+                    CompoundField {
+                        name: "10".to_string(),
+                        ty: <$t10 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 10),
+                        index: 10,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
+    // 12-tuple
+    ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident, $t10:ident, $t11:ident] $($_idx:tt)*) => {
+        #[allow(dead_code, unused_variables)]
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11)
+            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type, $t10: H5Type, $t11: H5Type
+        {
+            fn type_descriptor() -> TypeDescriptor {
+                let mut fields = vec![
+                    CompoundField {
+                        name: "0".to_string(),
+                        ty: <$t0 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 0),
+                        index: 0,
+                    },
+                    CompoundField {
+                        name: "1".to_string(),
+                        ty: <$t1 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 1),
+                        index: 1,
+                    },
+                    CompoundField {
+                        name: "2".to_string(),
+                        ty: <$t2 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 2),
+                        index: 2,
+                    },
+                    CompoundField {
+                        name: "3".to_string(),
+                        ty: <$t3 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 3),
+                        index: 3,
+                    },
+                    CompoundField {
+                        name: "4".to_string(),
+                        ty: <$t4 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 4),
+                        index: 4,
+                    },
+                    CompoundField {
+                        name: "5".to_string(),
+                        ty: <$t5 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 5),
+                        index: 5,
+                    },
+                    CompoundField {
+                        name: "6".to_string(),
+                        ty: <$t6 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 6),
+                        index: 6,
+                    },
+                    CompoundField {
+                        name: "7".to_string(),
+                        ty: <$t7 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 7),
+                        index: 7,
+                    },
+                    CompoundField {
+                        name: "8".to_string(),
+                        ty: <$t8 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 8),
+                        index: 8,
+                    },
+                    CompoundField {
+                        name: "9".to_string(),
+                        ty: <$t9 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 9),
+                        index: 9,
+                    },
+                    CompoundField {
+                        name: "10".to_string(),
+                        ty: <$t10 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 10),
+                        index: 10,
+                    },
+                    CompoundField {
+                        name: "11".to_string(),
+                        ty: <$t11 as H5Type>::type_descriptor(),
+                        offset: mem::offset_of!(Self, 11),
+                        index: 11,
+                    },
+                ];
+                let size = mem::size_of::<Self>();
+                fields.sort_by_key(|f| f.offset);
+                TypeDescriptor::Compound(CompoundType { fields, size })
+            }
+        }
+    };
 }
 
 impl_tuple! { A, B, C, D, E, F, G, H, I, J, K, L }
@@ -534,5 +1166,299 @@ pub mod tests {
             })
         );
         assert_eq!(td.size(), 14);
+    }
+
+    #[test]
+    pub fn test_intsize_from_int_valid() {
+        assert_eq!(IntSize::from_int(1), Some(IntSize::U1));
+        assert_eq!(IntSize::from_int(2), Some(IntSize::U2));
+        assert_eq!(IntSize::from_int(4), Some(IntSize::U4));
+        assert_eq!(IntSize::from_int(8), Some(IntSize::U8));
+    }
+
+    #[test]
+    pub fn test_intsize_from_int_invalid() {
+        assert_eq!(IntSize::from_int(0), None);
+        assert_eq!(IntSize::from_int(3), None);
+        assert_eq!(IntSize::from_int(5), None);
+        assert_eq!(IntSize::from_int(7), None);
+        assert_eq!(IntSize::from_int(9), None);
+        assert_eq!(IntSize::from_int(16), None);
+        assert_eq!(IntSize::from_int(255), None);
+    }
+
+    #[test]
+    pub fn test_floatsize_from_int_valid() {
+        assert_eq!(FloatSize::from_int(4), Some(FloatSize::U4));
+        assert_eq!(FloatSize::from_int(8), Some(FloatSize::U8));
+        #[cfg(feature = "f16")]
+        assert_eq!(FloatSize::from_int(2), Some(FloatSize::U2));
+    }
+
+    #[test]
+    pub fn test_floatsize_from_int_invalid() {
+        assert_eq!(FloatSize::from_int(0), None);
+        assert_eq!(FloatSize::from_int(1), None);
+        assert_eq!(FloatSize::from_int(3), None);
+        assert_eq!(FloatSize::from_int(5), None);
+        assert_eq!(FloatSize::from_int(16), None);
+    }
+
+    #[test]
+    pub fn test_intsize_ord() {
+        assert!(IntSize::U1 < IntSize::U2);
+        assert!(IntSize::U2 < IntSize::U4);
+        assert!(IntSize::U4 < IntSize::U8);
+        assert_eq!(IntSize::U1, IntSize::U1);
+    }
+
+    #[test]
+    pub fn test_floatsize_ord() {
+        assert!(FloatSize::U4 < FloatSize::U8);
+        assert_eq!(FloatSize::U4, FloatSize::U4);
+    }
+
+    #[test]
+    pub fn test_enum_member() {
+        let member = CompoundField::new("test", TD::Unsigned(IntSize::U4), 0, 0);
+        assert_eq!(member.name, "test");
+        assert_eq!(member.ty, TD::Unsigned(IntSize::U4));
+        assert_eq!(member.offset, 0);
+        assert_eq!(member.index, 0);
+    }
+
+    #[test]
+    pub fn test_enum_type_base_type() {
+        use super::EnumType;
+        let enum_type = EnumType {
+            size: IntSize::U4,
+            signed: false,
+            members: vec![],
+        };
+        assert_eq!(enum_type.base_type(), TD::Unsigned(IntSize::U4));
+
+        let signed_enum = EnumType {
+            size: IntSize::U2,
+            signed: true,
+            members: vec![],
+        };
+        assert_eq!(signed_enum.base_type(), TD::Integer(IntSize::U2));
+    }
+
+    #[test]
+    pub fn test_compound_type_new() {
+        let field1 = CompoundField::new("a", TD::Integer(IntSize::U4), 0, 0);
+        let field2 = CompoundField::new("b", TD::Float(FloatSize::U8), 4, 1);
+        let compound = CompoundType {
+            fields: vec![field1, field2],
+            size: 12,
+        };
+        assert_eq!(compound.fields.len(), 2);
+        assert_eq!(compound.size, 12);
+    }
+
+    #[test]
+    pub fn test_compound_type_to_c_repr_single_field() {
+        let field = CompoundField::new("x", TD::Integer(IntSize::U4), 0, 0);
+        let compound = CompoundType { fields: vec![field], size: 4 };
+        let c_repr = compound.to_c_repr();
+        assert_eq!(c_repr.size, 4);
+        assert_eq!(c_repr.fields[0].offset, 0);
+    }
+
+    #[test]
+    pub fn test_compound_type_to_packed_repr() {
+        let field1 = CompoundField::typed::<u8>("a", 0, 0);
+        let field2 = CompoundField::typed::<u64>("b", 8, 1);
+        let compound = CompoundType { fields: vec![field1, field2], size: 16 };
+        let packed = compound.to_packed_repr();
+        assert_eq!(packed.size, 9); // 1 + 8, no padding
+        assert_eq!(packed.fields[0].offset, 0);
+        assert_eq!(packed.fields[1].offset, 1);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_size_fixed_array() {
+        let td = TD::FixedArray(Box::new(TD::Integer(IntSize::U4)), 10);
+        assert_eq!(td.size(), 40);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_size_varlen_array() {
+        let td = TD::VarLenArray(Box::new(TD::Integer(IntSize::U4)));
+        assert_eq!(td.size(), mem::size_of::<hvl_t>());
+    }
+
+    #[test]
+    pub fn test_type_descriptor_size_fixed_string() {
+        let td = TD::FixedAscii(32);
+        assert_eq!(td.size(), 32);
+        let td = TD::FixedUnicode(64);
+        assert_eq!(td.size(), 64);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_size_varlen_string() {
+        let td = TD::VarLenAscii;
+        assert_eq!(td.size(), mem::size_of::<*const u8>());
+        let td = TD::VarLenUnicode;
+        assert_eq!(td.size(), mem::size_of::<*const u8>());
+    }
+
+    #[test]
+    pub fn test_type_descriptor_c_alignment_primitive() {
+        assert_eq!(TD::Integer(IntSize::U1).c_alignment(), 1);
+        assert_eq!(TD::Integer(IntSize::U2).c_alignment(), 2);
+        assert_eq!(TD::Integer(IntSize::U4).c_alignment(), 4);
+        assert_eq!(TD::Integer(IntSize::U8).c_alignment(), 8);
+        assert_eq!(TD::Unsigned(IntSize::U4).c_alignment(), 4);
+        assert_eq!(TD::Float(FloatSize::U8).c_alignment(), 8);
+        assert_eq!(TD::Boolean.c_alignment(), 1);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_c_alignment_array() {
+        let td = TD::FixedArray(Box::new(TD::Integer(IntSize::U4)), 10);
+        assert_eq!(td.c_alignment(), 4);
+        let td = TD::FixedArray(Box::new(TD::Integer(IntSize::U8)), 5);
+        assert_eq!(td.c_alignment(), 8);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_c_alignment_compound() {
+        let field1 = CompoundField::typed::<u8>("a", 0, 0);
+        let field2 = CompoundField::typed::<u64>("b", 8, 1);
+        let compound = CompoundType { fields: vec![field1, field2], size: 16 };
+        let td = TD::Compound(compound);
+        assert_eq!(td.c_alignment(), 8); // max alignment
+    }
+
+    #[test]
+    pub fn test_type_descriptor_to_c_repr_preserves_primitives() {
+        assert_eq!(TD::Integer(IntSize::U4).to_c_repr(), TD::Integer(IntSize::U4));
+        assert_eq!(TD::Float(FloatSize::U8).to_c_repr(), TD::Float(FloatSize::U8));
+        assert_eq!(TD::Boolean.to_c_repr(), TD::Boolean);
+    }
+
+    #[test]
+    pub fn test_type_descriptor_to_packed_repr_preserves_primitives() {
+        assert_eq!(TD::Integer(IntSize::U4).to_packed_repr(), TD::Integer(IntSize::U4));
+        assert_eq!(TD::Float(FloatSize::U8).to_packed_repr(), TD::Float(FloatSize::U8));
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_integer() {
+        assert_eq!(format!("{}", TD::Integer(IntSize::U1)), "int8");
+        assert_eq!(format!("{}", TD::Integer(IntSize::U2)), "int16");
+        assert_eq!(format!("{}", TD::Integer(IntSize::U4)), "int32");
+        assert_eq!(format!("{}", TD::Integer(IntSize::U8)), "int64");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_unsigned() {
+        assert_eq!(format!("{}", TD::Unsigned(IntSize::U1)), "uint8");
+        assert_eq!(format!("{}", TD::Unsigned(IntSize::U2)), "uint16");
+        assert_eq!(format!("{}", TD::Unsigned(IntSize::U4)), "uint32");
+        assert_eq!(format!("{}", TD::Unsigned(IntSize::U8)), "uint64");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_float() {
+        assert_eq!(format!("{}", TD::Float(FloatSize::U4)), "float32");
+        assert_eq!(format!("{}", TD::Float(FloatSize::U8)), "float64");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_bool() {
+        assert_eq!(format!("{}", TD::Boolean), "bool");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_enum() {
+        use super::EnumType;
+        let enum_type = EnumType {
+            size: IntSize::U4,
+            signed: false,
+            members: vec![],
+        };
+        assert_eq!(format!("{}", TD::Enum(enum_type)), "enum (uint32)");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_compound() {
+        let compound = CompoundType {
+            fields: vec![CompoundField::typed::<u32>("x", 0, 0)],
+            size: 4,
+        };
+        assert_eq!(format!("{}", TD::Compound(compound)), "compound (1 fields)");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_fixed_array() {
+        let td = TD::FixedArray(Box::new(TD::Integer(IntSize::U4)), 10);
+        assert_eq!(format!("{}", td), "[int32; 10]");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_varlen_array() {
+        let td = TD::VarLenArray(Box::new(TD::Integer(IntSize::U4)));
+        assert_eq!(format!("{}", td), "[int32] (var len)");
+    }
+
+    #[test]
+    pub fn test_type_descriptor_display_strings() {
+        assert_eq!(format!("{}", TD::FixedAscii(32)), "string (len 32)");
+        assert_eq!(format!("{}", TD::FixedUnicode(64)), "unicode (len 64)");
+        assert_eq!(format!("{}", TD::VarLenAscii), "string (var len)");
+        assert_eq!(format!("{}", TD::VarLenUnicode), "unicode (var len)");
+    }
+
+    #[test]
+    pub fn test_tuple_3_elements() {
+        type T = (i32, f64, bool);
+        let td = T::type_descriptor();
+        assert!(matches!(td, TD::Compound(_)));
+        assert_eq!(td.size(), mem::size_of::<T>());
+    }
+
+    #[test]
+    pub fn test_tuple_5_elements() {
+        type T = (u8, u16, u32, u64, i32);
+        let td = T::type_descriptor();
+        assert!(matches!(td, TD::Compound(_)));
+        assert_eq!(td.size(), mem::size_of::<T>());
+    }
+
+    #[test]
+    pub fn test_nested_tuple_compound() {
+        type Inner = (u8, u16);
+        type Outer = (i32, Inner, f64);
+        let td = Outer::type_descriptor();
+        assert!(matches!(td, TD::Compound(_)));
+        assert_eq!(td.size(), mem::size_of::<Outer>());
+    }
+
+    #[test]
+    pub fn test_compound_field_typed() {
+        let field = CompoundField::typed::<u32>("my_field", 8, 1);
+        assert_eq!(field.name, "my_field");
+        assert_eq!(field.ty, TD::Unsigned(IntSize::U4));
+        assert_eq!(field.offset, 8);
+        assert_eq!(field.index, 1);
+    }
+
+    #[test]
+    pub fn test_compound_type_with_multiple_fields_to_c_repr() {
+        let fields = vec![
+            CompoundField::typed::<u8>("a", 0, 0),
+            CompoundField::typed::<u32>("b", 4, 1),
+            CompoundField::typed::<u16>("c", 8, 2),
+        ];
+        let compound = CompoundType { fields, size: 12 };
+        let c_repr = compound.to_c_repr();
+        // C repr should align fields properly
+        assert_eq!(c_repr.fields[0].offset, 0);
+        assert!(c_repr.fields[1].offset >= 4);
+        assert!(c_repr.fields[2].offset >= c_repr.fields[1].offset + 4);
     }
 }

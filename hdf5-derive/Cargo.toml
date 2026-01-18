@@ -24,3 +24,7 @@ syn = { version = "2.0", features = ["derive", "extra-traits"]}
 [dev-dependencies]
 trybuild = "1.0"
 hdf5.workspace = true
+
+[lints.rust]
+# Allow non-local impl from derive macros in tests
+non_local_definitions = "allow"

@@ -47,6 +47,15 @@ impl Handle {
         }
     }
 
+    /// Try to clone this handle, returning an error if borrowing fails.
+    ///
+    /// This is the preferred way to clone handles when you need to handle errors.
+    /// Unlike the `Clone` trait implementation, this method returns a `Result`
+    /// so you can properly handle cloning failures.
+    pub fn try_clone(&self) -> Result<Self> {
+        Self::try_borrow(self.id)
+    }
+
     /// Decrease the reference count of the handle
     ///
     /// Note: This function should only be used if `incref` has been
@@ -70,8 +79,19 @@ impl Handle {
     }
 
     /// Return the reference count of the object
+    ///
+    /// Returns 0 if the handle is invalid or if getting the refcount fails.
+    /// Use `try_refcount()` to distinguish between "no references" and "error".
     pub fn refcount(&self) -> u32 {
-        h5call!(H5Iget_ref(self.id)).map(|x| x as _).unwrap_or(0) as _
+        self.try_refcount().unwrap_or(0)
+    }
+
+    /// Try to get the reference count of the object
+    ///
+    /// Returns an error if getting the refcount fails, allowing the caller
+    /// to distinguish between "no references" (Ok(0)) and "error" (Err).
+    pub fn try_refcount(&self) -> Result<u32> {
+        h5call!(H5Iget_ref(self.id)).map(|x| x as _)
     }
 
     /// Get HDF5 object type as a native enum.
@@ -89,7 +109,15 @@ impl Handle {
 
 impl Clone for Handle {
     fn clone(&self) -> Self {
-        Self::try_borrow(self.id).unwrap_or_else(|_| Self::invalid())
+        match Self::try_borrow(self.id) {
+            Ok(handle) => handle,
+            Err(err) => {
+                // Log the error but return an invalid handle to maintain Clone trait contract
+                // The invalid handle will not close any resources when dropped
+                eprintln!("Warning: Handle::clone() failed for id {}: {}", self.id, err);
+                Self::invalid()
+            }
+        }
     }
 }
 

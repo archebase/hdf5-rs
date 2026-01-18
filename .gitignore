@@ -8,3 +8,10 @@ target/
 *.ipynb*
 .idea/
 sweep.timestamp
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html

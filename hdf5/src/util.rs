@@ -7,9 +7,12 @@ use std::str;
 use crate::internal_prelude::*;
 
 /// Convert a zero-terminated string (`const char *`) into a `String`.
+///
 /// # Safety
-/// The memory pointed to by `string` must be valid for constructing a `CStr`
-/// containing valid UTF-8.
+///
+/// The memory pointed to by `string` must be valid for constructing a `CStr`.
+/// The bytes must be valid UTF-8; if they are not, this function causes
+/// undefined behavior due to the use of `String::from_utf8_unchecked`.
 pub unsafe fn string_from_cstr(string: *const c_char) -> String {
     unsafe { String::from_utf8_unchecked(CStr::from_ptr(string).to_bytes().to_vec()) }
 }
