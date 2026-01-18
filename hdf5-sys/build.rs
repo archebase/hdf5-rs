@@ -311,6 +311,7 @@ mod unix {
         }
         for (inc_dir, lib_dir) in &[
             ("/usr/include/hdf5/serial", "/usr/lib/x86_64-linux-gnu/hdf5/serial"),
+            ("/usr/include/hdf5", "/usr/lib/x86_64-linux-gnu/hdf5"),
             ("/usr/include", "/usr/lib/x86_64-linux-gnu"),
             ("/usr/include", "/usr/lib64"),
         ] {
@@ -727,8 +728,6 @@ fn get_build_and_emit() {
     if feature_enabled("ZLIB") {
         let zlib_lib = env::var("DEP_HDF5SRC_ZLIB").unwrap();
         println!("cargo:zlib={}", &zlib_lib);
-        let zlib_lib_header = env::var("DEP_HDF5SRC_ZLIB").unwrap();
-        println!("cargo:zlib={}", &zlib_lib_header);
         println!("cargo:rustc-link-lib=static={}", &zlib_lib);
     }
 
@@ -749,6 +748,7 @@ fn get_build_and_emit() {
     println!("cargo:rustc-link-lib=static={}", &hdf5_lib);
 
     let header = Header::parse(&hdf5_incdir);
-    let config = Config { header, inc_dir: "".into(), link_paths: Vec::new() };
+    let inc_dir = PathBuf::from(&hdf5_incdir);
+    let config = Config { header, inc_dir, link_paths: Vec::new() };
     config.emit_cfg_flags();
 }
