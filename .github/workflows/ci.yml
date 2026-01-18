@@ -77,7 +77,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build and test
-        run: cargo test --features static,zlib
+        run: cargo test --package hdf5 --features static,zlib
 
   # ==============================================================================
   # Test MSRV
@@ -95,7 +95,7 @@ jobs:
           toolchain: '1.92'
 
       - name: Build and test
-        run: cargo test --features static,zlib
+        run: cargo test --package hdf5 --features static,zlib
 
   # ==============================================================================
   # Documentation build
