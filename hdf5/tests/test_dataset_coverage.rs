@@ -924,23 +924,53 @@ fn test_builder_all_blosc_variants() {
     let file = new_in_memory_file().unwrap();
 
     // Test blosclz
-    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).blosc_blosclz(5, BloscShuffle::None).create("ds_blosclz").unwrap();
+    let ds = file
+        .new_dataset::<i32>()
+        .chunk(10)
+        .shape(&[100])
+        .blosc_blosclz(5, BloscShuffle::None)
+        .create("ds_blosclz")
+        .unwrap();
     assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
     // Test lz4
-    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).blosc_lz4(5, BloscShuffle::Byte).create("ds_lz4").unwrap();
+    let ds = file
+        .new_dataset::<i32>()
+        .chunk(10)
+        .shape(&[100])
+        .blosc_lz4(5, BloscShuffle::Byte)
+        .create("ds_lz4")
+        .unwrap();
     assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
     // Test lz4hc
-    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).blosc_lz4hc(9, BloscShuffle::None).create("ds_lz4hc").unwrap();
+    let ds = file
+        .new_dataset::<i32>()
+        .chunk(10)
+        .shape(&[100])
+        .blosc_lz4hc(9, BloscShuffle::None)
+        .create("ds_lz4hc")
+        .unwrap();
     assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
     // Test snappy
-    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).blosc_snappy(5, BloscShuffle::Byte).create("ds_snappy").unwrap();
+    let ds = file
+        .new_dataset::<i32>()
+        .chunk(10)
+        .shape(&[100])
+        .blosc_snappy(5, BloscShuffle::Byte)
+        .create("ds_snappy")
+        .unwrap();
     assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
     // Test zlib
-    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).blosc_zlib(5, BloscShuffle::None).create("ds_zlib").unwrap();
+    let ds = file
+        .new_dataset::<i32>()
+        .chunk(10)
+        .shape(&[100])
+        .blosc_zlib(5, BloscShuffle::None)
+        .create("ds_zlib")
+        .unwrap();
     assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 }
 
