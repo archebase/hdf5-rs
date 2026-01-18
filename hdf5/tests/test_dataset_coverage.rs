@@ -16,14 +16,12 @@ use common::dataset_test_utils::{
     alloc_time_test_cases, chunk_min_kb_test_cases, conversion_test_cases,
     error_builder_test_cases, fill_time_test_cases, filter_combo_test_cases, layout_test_cases,
     resize_test_cases, run_builder_test, standard_builder_test_cases, validate_builder_test,
-    BuilderTestCase, TestData,
+    TestData,
 };
 use common::util::new_in_memory_file;
-use hdf5::filters::Filter;
 use hdf5::types::H5Type;
 use hdf5::{Dataset, File, Result};
-use ndarray::{s, Array1, Array2, ArrayView1, IxDyn};
-use std::convert::TryInto;
+use ndarray::{s, Array1, Array2, ArrayView1};
 
 // ============================================================================
 // Phase 1: Error Path Tests
@@ -811,7 +809,7 @@ fn test_builder_create_intermediate_group() {
     let file = new_in_memory_file().unwrap();
 
     // This should create intermediate groups
-    let ds = file.new_dataset::<i32>().shape(&[100]).create("group1/group2/ds").unwrap();
+    let _ds = file.new_dataset::<i32>().shape(&[100]).create("group1/group2/ds").unwrap();
 
     assert!(file.group("group1").is_ok(), "Intermediate group should be created");
     assert!(file.group("group1/group2").is_ok(), "Nested intermediate group should be created");
@@ -921,31 +919,39 @@ fn test_dataset_filters_empty() {
 #[cfg(feature = "blosc")]
 #[test]
 fn test_builder_all_blosc_variants() {
-    use hdf5::filters::{Blosc, BloscShuffle};
+    use hdf5::filters::BloscShuffle;
 
     let file = new_in_memory_file().unwrap();
 
-    let variants = vec![
-        ("blosclz", |b: &mut hdf5::DatasetBuilder| b.blosc_blosclz(5, BloscShuffle::None)),
-        ("lz4", |b: &mut hdf5::DatasetBuilder| b.blosc_lz4(5, BloscShuffle::Byte)),
-        ("lz4hc", |b: &mut hdf5::DatasetBuilder| b.blosc_lz4hc(9, BloscShuffle::None)),
-        ("snappy", |b: &mut hdf5::DatasetBuilder| b.blosc_snappy(5, BloscShuffle::Byte)),
-        ("zlib", |b: &mut hdf5::DatasetBuilder| b.blosc_zlib(5, BloscShuffle::None)),
-    ];
+    // Test blosclz
+    let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
+    builder.blosc_blosclz(5, BloscShuffle::None);
+    let ds = builder.create("ds_blosclz").unwrap();
+    assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
-    for (name, variant_fn) in variants {
-        let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
-        variant_fn(&mut builder);
+    // Test lz4
+    let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
+    builder.blosc_lz4(5, BloscShuffle::Byte);
+    let ds = builder.create("ds_lz4").unwrap();
+    assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
-        let ds = builder.create(&format!("ds_{}", name)).unwrap();
+    // Test lz4hc
+    let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
+    builder.blosc_lz4hc(9, BloscShuffle::None);
+    let ds = builder.create("ds_lz4hc").unwrap();
+    assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 
-        let filters = ds.filters();
-        assert!(
-            filters.iter().any(|f| matches!(f, Filter::Blosc(Blosc::*, _, _))),
-            "Blosc {} variant should create Blosc filter",
-            name
-        );
-    }
+    // Test snappy
+    let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
+    builder.blosc_snappy(5, BloscShuffle::Byte);
+    let ds = builder.create("ds_snappy").unwrap();
+    assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
+
+    // Test zlib
+    let mut builder = file.new_dataset::<i32>().chunk(10).shape(&[100]);
+    builder.blosc_zlib(5, BloscShuffle::None);
+    let ds = builder.create("ds_zlib").unwrap();
+    assert!(ds.filters().iter().any(|f| matches!(f, hdf5::filters::Filter::Blosc(_, _, _))));
 }
 
 #[test]
@@ -973,8 +979,6 @@ fn test_dataset_ndim() {
 
 #[test]
 fn test_dataset_empty_as_with_type_descriptor() {
-    use hdf5_types::TypeDescriptor;
-
     let file = new_in_memory_file().unwrap();
 
     // Create empty dataset with custom type descriptor
@@ -986,8 +990,6 @@ fn test_dataset_empty_as_with_type_descriptor() {
 
 #[test]
 fn test_dataset_with_data_as() {
-    use hdf5_types::TypeDescriptor;
-
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = vec![1, 2, 3, 4, 5];
 
@@ -1697,7 +1699,7 @@ fn test_table_driven_resize_operations() {
                     // 1D resizable
                     file.new_dataset::<i32>()
                         .chunk(chunk_size)
-                        .shape((case.initial_shape[0]..))
+                        .shape(case.initial_shape[0]..)
                         .create(case.name)
                         .unwrap_or_else(|e| panic!("Test '{}' setup failed: {}", case.name, e))
                 }
@@ -1776,8 +1778,6 @@ fn test_table_driven_resize_operations() {
 
 #[test]
 fn test_table_driven_conversion_modes() -> Result<(), Box<dyn std::error::Error>> {
-    use hdf5::Conversion;
-
     for case in conversion_test_cases() {
         let file = new_in_memory_file()?;
 
