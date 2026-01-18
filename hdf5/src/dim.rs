@@ -113,7 +113,7 @@ pub mod tests {
 
     #[test]
     pub fn test_unit_ndim() {
-        assert_eq!(() .ndim(), 0);
+        assert_eq!(().ndim(), 0);
     }
 
     #[test]
@@ -250,8 +250,8 @@ pub mod tests {
     pub fn test_tuple_12_ndim() {
         assert_eq!(
             (
-                1usize, 2usize, 3usize, 4usize, 5usize, 6usize, 7usize, 8usize, 9usize, 10usize, 11usize,
-                12usize,
+                1usize, 2usize, 3usize, 4usize, 5usize, 6usize, 7usize, 8usize, 9usize, 10usize,
+                11usize, 12usize,
             )
                 .ndim(),
             12
@@ -261,7 +261,11 @@ pub mod tests {
     #[test]
     pub fn test_tuple_12_size() {
         assert_eq!(
-            (1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize).size(),
+            (
+                1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize, 1usize,
+                1usize, 1usize
+            )
+                .size(),
             1
         );
     }

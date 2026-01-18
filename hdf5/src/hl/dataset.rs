@@ -1146,7 +1146,8 @@ mod tests {
         use hdf5_types::TypeDescriptor;
         with_tmp_file(|file| {
             let type_desc = TypeDescriptor::Integer(hdf5_types::IntSize::U4);
-            let ds = file.new_dataset_builder().empty_as(&type_desc).shape(()).create("test").unwrap();
+            let ds =
+                file.new_dataset_builder().empty_as(&type_desc).shape(()).create("test").unwrap();
             assert_eq!(ds.shape(), vec![]);
         })
     }
@@ -1170,7 +1171,8 @@ mod tests {
             let arr = ndarray::arr2(&[[1.0_f32, 2.0], [3.0, 4.0]]);
 
             // Create as f32 with f32 data but with no_convert - should still work since it's the same type
-            let ds = file.new_dataset_builder().with_data(&arr).no_convert().create("test").unwrap();
+            let ds =
+                file.new_dataset_builder().with_data(&arr).no_convert().create("test").unwrap();
             assert_eq!(ds.shape(), vec![2, 2]);
         })
     }
@@ -1180,7 +1182,8 @@ mod tests {
         use crate::internal_prelude::*;
         with_tmp_file(|file| {
             let arr: Vec<i32> = (0..10000).collect();
-            let ds = file.new_dataset::<i32>().chunk_min_kb(16).shape(10000).create("test").unwrap();
+            let ds =
+                file.new_dataset::<i32>().chunk_min_kb(16).shape(10000).create("test").unwrap();
             ds.write(&arr).unwrap();
 
             assert!(ds.is_chunked());
@@ -1194,7 +1197,8 @@ mod tests {
         with_tmp_file(|file| {
             // Create a packed dataset
             let ds = file.new_dataset::<i32>().packed(true).shape((10, 10)).create("test").unwrap();
-            ds.write(&ndarray::Array2::from_shape_fn((10, 10), |(i, j)| (i * 10 + j) as i32)).unwrap();
+            ds.write(&ndarray::Array2::from_shape_fn((10, 10), |(i, j)| (i * 10 + j) as i32))
+                .unwrap();
 
             // Read back and verify
             let data: ndarray::Array2<i32> = ds.read_2d().unwrap();
@@ -1477,7 +1481,12 @@ mod tests {
     fn test_dataset_builder_chunk_cache() {
         use crate::internal_prelude::*;
         with_tmp_file(|file| {
-            let ds = file.new_dataset::<i32>().chunk_cache(100, 1024 * 1024, 0.75).shape(100).create("test").unwrap();
+            let ds = file
+                .new_dataset::<i32>()
+                .chunk_cache(100, 1024 * 1024, 0.75)
+                .shape(100)
+                .create("test")
+                .unwrap();
             assert!(ds.is_valid());
         })
     }
@@ -1491,7 +1500,8 @@ mod tests {
                 return;
             }
             // Deflate requires chunking
-            let ds = file.new_dataset::<i32>().chunk(10).deflate(3).shape(100).create("test").unwrap();
+            let ds =
+                file.new_dataset::<i32>().chunk(10).deflate(3).shape(100).create("test").unwrap();
             assert!(ds.is_valid());
         })
     }
@@ -1509,7 +1519,13 @@ mod tests {
     fn test_dataset_builder_fill_value() {
         use crate::internal_prelude::*;
         with_tmp_file(|file| {
-            let ds = file.new_dataset::<i32>().fill_value(42).chunk(10).shape(10).create("test").unwrap();
+            let ds = file
+                .new_dataset::<i32>()
+                .fill_value(42)
+                .chunk(10)
+                .shape(10)
+                .create("test")
+                .unwrap();
             ds.write(&vec![1; 10]).unwrap();
 
             let data: Vec<i32> = ds.read_raw().unwrap();
@@ -1521,7 +1537,13 @@ mod tests {
     fn test_dataset_builder_no_fill_value() {
         use crate::internal_prelude::*;
         with_tmp_file(|file| {
-            let ds = file.new_dataset::<i32>().no_fill_value().chunk(10).shape(10).create("test").unwrap();
+            let ds = file
+                .new_dataset::<i32>()
+                .no_fill_value()
+                .chunk(10)
+                .shape(10)
+                .create("test")
+                .unwrap();
             assert!(ds.is_valid());
         })
     }

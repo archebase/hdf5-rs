@@ -107,7 +107,6 @@ pub enum H5Error {
     // ========================================================================
     // File errors (1000-1999)
     // ========================================================================
-
     /// File not found at the specified path.
     FileNotFound { path: String }, // 1001
 
@@ -126,7 +125,6 @@ pub enum H5Error {
     // ========================================================================
     // Dataset errors (2000-2999)
     // ========================================================================
-
     /// Dataset not found.
     DatasetNotFound { name: String }, // 2001
 
@@ -148,7 +146,6 @@ pub enum H5Error {
     // ========================================================================
     // Attribute errors (3000-3999)
     // ========================================================================
-
     /// Attribute not found.
     AttributeNotFound { name: String }, // 3001
 
@@ -164,7 +161,6 @@ pub enum H5Error {
     // ========================================================================
     // Group errors (4000-4999)
     // ========================================================================
-
     /// Group not found.
     GroupNotFound { path: String }, // 4001
 
@@ -180,7 +176,6 @@ pub enum H5Error {
     // ========================================================================
     // Datatype errors (5000-5999)
     // ========================================================================
-
     /// Type conversion failed.
     TypeConversionError { from: String, to: String }, // 5001
 
@@ -193,7 +188,6 @@ pub enum H5Error {
     // ========================================================================
     // Dataspace errors (6000-6999)
     // ========================================================================
-
     /// Dataspace selection error.
     SelectionError { reason: String }, // 6001
 
@@ -212,7 +206,6 @@ pub enum H5Error {
     // ========================================================================
     // Handle errors (7000-7999)
     // ========================================================================
-
     /// Invalid handle identifier.
     InvalidHandle { handle_id: hid_t, description: String }, // 7001
 
@@ -225,7 +218,6 @@ pub enum H5Error {
     // ========================================================================
     // Filter errors (8000-8999)
     // ========================================================================
-
     /// Filter not available.
     FilterNotAvailable { filter_name: String }, // 8001
 
@@ -241,7 +233,6 @@ pub enum H5Error {
     // ========================================================================
     // Internal errors (9000-9999)
     // ========================================================================
-
     /// HDF5 C library error with error stack.
     HDF5Error(ErrorStack), // 9001
 
@@ -395,7 +386,9 @@ impl H5Error {
         Self::FilterNotAvailable { filter_name: filter_name.into() }
     }
 
-    pub fn filter_registration_error(filter_name: impl Into<String>, reason: impl Into<String>) -> Self {
+    pub fn filter_registration_error(
+        filter_name: impl Into<String>, reason: impl Into<String>,
+    ) -> Self {
         Self::FilterRegistrationError { filter_name: filter_name.into(), reason: reason.into() }
     }
 
@@ -403,7 +396,9 @@ impl H5Error {
         Self::FilterConfigError { filter_name: filter_name.into(), reason: reason.into() }
     }
 
-    pub fn filter_operation_error(filter_name: impl Into<String>, operation: impl Into<String>) -> Self {
+    pub fn filter_operation_error(
+        filter_name: impl Into<String>, operation: impl Into<String>,
+    ) -> Self {
         Self::FilterOperationError { filter_name: filter_name.into(), operation: operation.into() }
     }
 
@@ -477,8 +472,11 @@ impl H5Error {
             | Self::FilterConfigError { .. }
             | Self::FilterOperationError { .. } => H5ErrorCategory::Filter,
 
-            Self::HDF5Error(_) | Self::Internal { .. } | Self::NotImplemented { .. }
-            | Self::InvalidArgument { .. } | Self::OutOfMemory => H5ErrorCategory::Internal,
+            Self::HDF5Error(_)
+            | Self::Internal { .. }
+            | Self::NotImplemented { .. }
+            | Self::InvalidArgument { .. }
+            | Self::OutOfMemory => H5ErrorCategory::Internal,
         }
     }
 
@@ -541,9 +539,15 @@ impl H5Error {
     pub fn log_fields(&self) -> Vec<(&'static str, String)> {
         match self {
             Self::FileNotFound { path } => vec![("path", path.clone())],
-            Self::FileOpenError { path, reason } => vec![("path", path.clone()), ("reason", reason.clone())],
-            Self::FileCreateError { path, reason } => vec![("path", path.clone()), ("reason", reason.clone())],
-            Self::FileIOError { path, operation } => vec![("path", path.clone()), ("operation", operation.clone())],
+            Self::FileOpenError { path, reason } => {
+                vec![("path", path.clone()), ("reason", reason.clone())]
+            }
+            Self::FileCreateError { path, reason } => {
+                vec![("path", path.clone()), ("reason", reason.clone())]
+            }
+            Self::FileIOError { path, operation } => {
+                vec![("path", path.clone()), ("operation", operation.clone())]
+            }
             Self::InvalidAccessMode { mode } => vec![("mode", mode.clone())],
 
             Self::DatasetNotFound { name } => vec![("name", name.clone())],
@@ -552,20 +556,36 @@ impl H5Error {
             }
             Self::DatasetSpaceError { reason } => vec![("reason", reason.clone())],
             Self::ChunkSizeError { reason } => vec![("reason", reason.clone())],
-            Self::DatasetReadError { name, reason } => vec![("name", name.clone()), ("reason", reason.clone())],
-            Self::DatasetWriteError { name, reason } => vec![("name", name.clone()), ("reason", reason.clone())],
+            Self::DatasetReadError { name, reason } => {
+                vec![("name", name.clone()), ("reason", reason.clone())]
+            }
+            Self::DatasetWriteError { name, reason } => {
+                vec![("name", name.clone()), ("reason", reason.clone())]
+            }
 
             Self::AttributeNotFound { name } => vec![("name", name.clone())],
-            Self::AttributeReadError { name, reason } => vec![("name", name.clone()), ("reason", reason.clone())],
-            Self::AttributeWriteError { name, reason } => vec![("name", name.clone()), ("reason", reason.clone())],
-            Self::AttributeDeleteError { name, reason } => vec![("name", name.clone()), ("reason", reason.clone())],
+            Self::AttributeReadError { name, reason } => {
+                vec![("name", name.clone()), ("reason", reason.clone())]
+            }
+            Self::AttributeWriteError { name, reason } => {
+                vec![("name", name.clone()), ("reason", reason.clone())]
+            }
+            Self::AttributeDeleteError { name, reason } => {
+                vec![("name", name.clone()), ("reason", reason.clone())]
+            }
 
             Self::GroupNotFound { path } => vec![("path", path.clone())],
-            Self::GroupCreateError { path, reason } => vec![("path", path.clone()), ("reason", reason.clone())],
-            Self::InvalidGroupPath { path, reason } => vec![("path", path.clone()), ("reason", reason.clone())],
+            Self::GroupCreateError { path, reason } => {
+                vec![("path", path.clone()), ("reason", reason.clone())]
+            }
+            Self::InvalidGroupPath { path, reason } => {
+                vec![("path", path.clone()), ("reason", reason.clone())]
+            }
             Self::GroupIterationError { reason } => vec![("reason", reason.clone())],
 
-            Self::TypeConversionError { from, to } => vec![("from", from.clone()), ("to", to.clone())],
+            Self::TypeConversionError { from, to } => {
+                vec![("from", from.clone()), ("to", to.clone())]
+            }
             Self::InvalidDatatype { datatype, operation } => {
                 vec![("datatype", datatype.clone()), ("operation", operation.clone())]
             }
@@ -629,7 +649,9 @@ impl fmt::Debug for H5Error {
         write!(f, "[{}-{:04}] ", category.as_str(), code)?;
         match self {
             Self::FileNotFound { path } => write!(f, "File not found: {}", path),
-            Self::FileOpenError { path, reason } => write!(f, "Failed to open file '{}': {}", path, reason),
+            Self::FileOpenError { path, reason } => {
+                write!(f, "Failed to open file '{}': {}", path, reason)
+            }
             Self::FileCreateError { path, reason } => {
                 write!(f, "Failed to create file '{}': {}", path, reason)
             }
@@ -677,16 +699,26 @@ impl fmt::Debug for H5Error {
             Self::InvalidDatatype { datatype, operation } => {
                 write!(f, "Invalid datatype '{}' for operation {}", datatype, operation)
             }
-            Self::DatatypeCreateError { reason } => write!(f, "Datatype creation error: {}", reason),
+            Self::DatatypeCreateError { reason } => {
+                write!(f, "Datatype creation error: {}", reason)
+            }
 
             Self::SelectionError { reason } => write!(f, "Selection error: {}", reason),
             Self::HyperslabError { reason } => write!(f, "Hyperslab error: {}", reason),
             Self::PointSelectionError { reason } => write!(f, "Point selection error: {}", reason),
             Self::DimensionBoundsError { index, max, dim_name } => {
                 if let Some(name) = dim_name {
-                    write!(f, "Dimension '{}' bounds error: index {} out of bounds for max {}", name, index, max)
+                    write!(
+                        f,
+                        "Dimension '{}' bounds error: index {} out of bounds for max {}",
+                        name, index, max
+                    )
                 } else {
-                    write!(f, "Dimension bounds error: index {} out of bounds for max {}", index, max)
+                    write!(
+                        f,
+                        "Dimension bounds error: index {} out of bounds for max {}",
+                        index, max
+                    )
                 }
             }
             Self::DimensionOverflow { dims } => {
@@ -759,7 +791,8 @@ macro_rules! log_error {
             error_code = $error.code(),
             error_category = $error.category().as_str(),
             { ::tracing::field::debug($error.log_fields()) },
-            "{}", $error
+            "{}",
+            $error
         )
     };
 }
@@ -772,7 +805,8 @@ macro_rules! log_warn {
             error_code = $error.code(),
             error_category = $error.category().as_str(),
             { ::tracing::field::debug($error.log_fields()) },
-            "{}", $error
+            "{}",
+            $error
         )
     };
 }
@@ -1259,18 +1293,9 @@ pub mod tests {
 
     #[test]
     pub fn test_category_from_code() {
-        assert_eq!(
-            H5ErrorCategory::from_code(1001),
-            Some(H5ErrorCategory::File)
-        );
-        assert_eq!(
-            H5ErrorCategory::from_code(2001),
-            Some(H5ErrorCategory::Dataset)
-        );
-        assert_eq!(
-            H5ErrorCategory::from_code(9999),
-            Some(H5ErrorCategory::Internal)
-        );
+        assert_eq!(H5ErrorCategory::from_code(1001), Some(H5ErrorCategory::File));
+        assert_eq!(H5ErrorCategory::from_code(2001), Some(H5ErrorCategory::Dataset));
+        assert_eq!(H5ErrorCategory::from_code(9999), Some(H5ErrorCategory::Internal));
         assert_eq!(H5ErrorCategory::from_code(10000), None);
         assert_eq!(H5ErrorCategory::from_code(0), None);
     }

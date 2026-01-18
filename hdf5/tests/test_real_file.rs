@@ -469,12 +469,7 @@ fn test_chunk_info_disabled_filters() {
     assert_eq!(disabled, vec![0, 2]);
 
     // Test with zero filter mask
-    let info2 = ChunkInfo {
-        offset: vec![0, 0],
-        filter_mask: 0,
-        addr: 0,
-        size: 1024,
-    };
+    let info2 = ChunkInfo { offset: vec![0, 0], filter_mask: 0, addr: 0, size: 1024 };
     assert!(info2.disabled_filters().is_empty());
 }
 
@@ -518,12 +513,7 @@ fn test_chunks_visit_non_chunked_errors() {
 fn test_chunk_info_ref_conversion() {
     use hdf5::dataset::{ChunkInfo, ChunkInfoRef};
 
-    let info_ref = ChunkInfoRef {
-        offset: &[1, 2, 3],
-        filter_mask: 5,
-        addr: 1024,
-        size: 2048,
-    };
+    let info_ref = ChunkInfoRef { offset: &[1, 2, 3], filter_mask: 5, addr: 1024, size: 2048 };
 
     // Test conversion from ChunkInfoRef to ChunkInfo
     let info: ChunkInfo = info_ref.into();
@@ -538,12 +528,7 @@ fn test_chunk_info_ref_conversion() {
 fn test_chunk_info_ref_disabled_filters() {
     use hdf5::dataset::ChunkInfoRef;
 
-    let info_ref = ChunkInfoRef {
-        offset: &[0, 0],
-        filter_mask: 0b1101,
-        addr: 0,
-        size: 512,
-    };
+    let info_ref = ChunkInfoRef { offset: &[0, 0], filter_mask: 0b1101, addr: 0, size: 512 };
 
     // Test disabled_filters() on ChunkInfoRef
     let disabled = info_ref.disabled_filters();

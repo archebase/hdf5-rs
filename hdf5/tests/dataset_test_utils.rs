@@ -111,8 +111,7 @@ impl DatasetConfig {
     /// Apply this configuration to a dataset builder, returning the configured builder.
     /// This is a convenience method that applies common configurations.
     pub fn apply_to_builder<T, D>(
-        &self,
-        mut builder: hdf5::DatasetBuilderEmptyShape,
+        &self, mut builder: hdf5::DatasetBuilderEmptyShape,
     ) -> hdf5::DatasetBuilderEmptyShape
     where
         T: hdf5::H5Type,
@@ -238,11 +237,7 @@ macro_rules! test_dataset_configs {
 /// Helper function for table-driven dataset configuration tests.
 #[allow(dead_code, clippy::too_many_arguments)]
 fn test_dataset_config_impl(
-    shape: usize,
-    chunk: Option<usize>,
-    _compress: bool,
-    _shuffle: bool,
-    expected_is_chunked: bool,
+    shape: usize, chunk: Option<usize>, _compress: bool, _shuffle: bool, expected_is_chunked: bool,
 ) {
     with_tmp_file(|file| {
         let mut builder = file.new_dataset::<i32>();
@@ -272,12 +267,7 @@ pub struct PropertyTester {
 impl Default for PropertyTester {
     fn default() -> Self {
         Self {
-            shapes: vec![
-                vec![10],
-                vec![10, 10],
-                vec![5, 5, 5],
-                vec![2, 3, 4, 5],
-            ],
+            shapes: vec![vec![10], vec![10, 10], vec![5, 5, 5], vec![2, 3, 4, 5]],
             test_data: vec![
                 (0..10).collect(),
                 (0..50).collect(),
@@ -300,9 +290,7 @@ impl PropertyTester {
 
             // Create test file
             let file = hdf5::File::create(
-                std::env::temp_dir().join(format!("test_roundtrip_{}.h5", size))
-                    .to_str()
-                    .unwrap(),
+                std::env::temp_dir().join(format!("test_roundtrip_{}.h5", size)).to_str().unwrap(),
             )
             .unwrap();
 
@@ -351,11 +339,7 @@ pub struct PLTestHelper {
 
 impl PLTestHelper {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            file: File::create(
-                std::env::temp_dir().join("test_pl.h5").to_str().unwrap(),
-            )?,
-        })
+        Ok(Self { file: File::create(std::env::temp_dir().join("test_pl.h5").to_str().unwrap())? })
     }
 
     /// Get or create the test group
@@ -449,9 +433,7 @@ mod tests {
 
     #[test]
     fn test_dataset_config_builder() {
-        let config = DatasetConfig::default()
-            .chunked(10)
-            .compressed();
+        let config = DatasetConfig::default().chunked(10).compressed();
 
         assert_eq!(config.chunk_size, Some(10));
         assert!(config.compress);

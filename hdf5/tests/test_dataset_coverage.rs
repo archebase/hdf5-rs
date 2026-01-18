@@ -12,19 +12,17 @@
 
 mod common;
 
-use common::util::new_in_memory_file;
 use common::dataset_test_utils::{
-    standard_builder_test_cases, error_builder_test_cases,
-    run_builder_test, validate_builder_test,
-    TestData, BuilderTestCase,
-    alloc_time_test_cases, fill_time_test_cases, chunk_min_kb_test_cases,
-    filter_combo_test_cases, layout_test_cases, resize_test_cases,
-    conversion_test_cases,
+    alloc_time_test_cases, chunk_min_kb_test_cases, conversion_test_cases,
+    error_builder_test_cases, fill_time_test_cases, filter_combo_test_cases, layout_test_cases,
+    resize_test_cases, run_builder_test, standard_builder_test_cases, validate_builder_test,
+    BuilderTestCase, TestData,
 };
-use hdf5::{Dataset, File, Result};
-use hdf5::types::H5Type;
+use common::util::new_in_memory_file;
 use hdf5::filters::Filter;
-use ndarray::{Array1, Array2, ArrayView1, IxDyn, s};
+use hdf5::types::H5Type;
+use hdf5::{Dataset, File, Result};
+use ndarray::{s, Array1, Array2, ArrayView1, IxDyn};
 use std::convert::TryInto;
 
 // ============================================================================
@@ -41,11 +39,12 @@ fn test_dataset_resize_non_resizable_fails() {
     assert!(result.is_err(), "Non-resizable dataset should fail to resize");
     let err_msg = result.as_ref().unwrap_err().to_string();
     assert!(
-        err_msg.contains("not resizable") ||
-        err_msg.contains("dataset is not resizable") ||
-        err_msg.contains("maximal size") ||
-        err_msg.contains("contiguous storage"),
-        "Error should mention resize limitation: {}", err_msg
+        err_msg.contains("not resizable")
+            || err_msg.contains("dataset is not resizable")
+            || err_msg.contains("maximal size")
+            || err_msg.contains("contiguous storage"),
+        "Error should mention resize limitation: {}",
+        err_msg
     );
 }
 
@@ -53,11 +52,7 @@ fn test_dataset_resize_non_resizable_fails() {
 fn test_dataset_resize_chunked_succeeds() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[5, 10])
-        .shape((10.., 10))
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[5, 10]).shape((10.., 10)).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     // Resize to larger
@@ -73,11 +68,7 @@ fn test_dataset_resize_chunked_succeeds() {
 fn test_dataset_resize_unbounded_dimension() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..50).collect();
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[5, 5])
-        .shape((10.., 5))
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[5, 5]).shape((10.., 5)).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     // Resize unbounded dimension
@@ -88,11 +79,7 @@ fn test_dataset_resize_unbounded_dimension() {
 #[test]
 fn test_dataset_fill_value_none() {
     let file = new_in_memory_file().unwrap();
-    let ds = file.new_dataset::<i32>()
-        .no_fill_value()
-        .shape(&[10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().no_fill_value().shape(&[10]).create("ds").unwrap();
 
     // fill_value() should return Ok - the actual value depends on HDF5 defaults
     let fill_value = ds.fill_value();
@@ -102,11 +89,7 @@ fn test_dataset_fill_value_none() {
 #[test]
 fn test_dataset_fill_value_with_value() {
     let file = new_in_memory_file().unwrap();
-    let ds = file.new_dataset::<i32>()
-        .fill_value(-42)
-        .shape(&[10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().fill_value(-42).shape(&[10]).create("ds").unwrap();
 
     let fill_value = ds.fill_value().unwrap();
     assert!(fill_value.is_some(), "fill_value should be Some");
@@ -119,14 +102,13 @@ fn test_chunk_resizable_without_chunking_fails() {
     let file = new_in_memory_file().unwrap();
 
     // Creating resizable dataset without chunking should fail
-    let result = file.new_dataset::<i32>()
-        .no_chunk()
-        .shape(&[10..])
-        .create("ds");
+    let result = file.new_dataset::<i32>().no_chunk().shape(&[10..]).create("ds");
 
     assert!(result.is_err(), "Resizable dataset without chunking should fail");
-    assert!(result.unwrap_err().to_string().contains("Chunking required"),
-            "Error should mention chunking requirement");
+    assert!(
+        result.unwrap_err().to_string().contains("Chunking required"),
+        "Error should mention chunking requirement"
+    );
 }
 
 #[test]
@@ -135,15 +117,13 @@ fn test_chunk_filters_without_chunking_fails() {
 
     // If deflate is available, this should fail without explicit chunking
     if hdf5::filters::deflate_available() {
-        let result = file.new_dataset::<i32>()
-            .no_chunk()
-            .deflate(3)
-            .shape(&[100])
-            .create("ds");
+        let result = file.new_dataset::<i32>().no_chunk().deflate(3).shape(&[100]).create("ds");
 
         assert!(result.is_err(), "Filters without chunking should fail");
-        assert!(result.unwrap_err().to_string().contains("Chunking required"),
-                "Error should mention chunking requirement");
+        assert!(
+            result.unwrap_err().to_string().contains("Chunking required"),
+            "Error should mention chunking requirement"
+        );
     }
 }
 
@@ -159,8 +139,10 @@ fn test_chunk_exceeds_data_shape_fails() {
 
     assert!(result.is_err(), "Chunk larger than data should fail");
     let err_msg = result.as_ref().unwrap_err().to_string();
-    assert!(err_msg.contains("exceed") || err_msg.contains("Chunk"),
-            "Error should mention chunk dimensions");
+    assert!(
+        err_msg.contains("exceed") || err_msg.contains("Chunk"),
+        "Error should mention chunk dimensions"
+    );
 }
 
 #[test]
@@ -175,8 +157,10 @@ fn test_chunk_zero_dimension_fails() {
 
     assert!(result.is_err(), "Chunk with zero dimension should fail");
     let err_msg = result.as_ref().unwrap_err().to_string();
-    assert!(err_msg.contains("positive") || err_msg.contains("chunk"),
-            "Error should mention positive dimensions");
+    assert!(
+        err_msg.contains("positive") || err_msg.contains("chunk"),
+        "Error should mention positive dimensions"
+    );
 }
 
 #[test]
@@ -185,11 +169,7 @@ fn test_chunk_ndim_mismatch_fails() {
 
     // This is implicitly tested by the chunk() method expecting correct dimensions
     // but we can test related behavior
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[5, 5])
-        .shape(&[10, 20])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[5, 5]).shape(&[10, 20]).create("ds").unwrap();
 
     assert_eq!(ds.chunk().unwrap(), vec![5, 5]);
 }
@@ -216,10 +196,7 @@ fn test_builder_conversion_noop_with_same_type_succeeds() {
     let data: Vec<i32> = vec![1, 2, 3, 4, 5];
 
     // Create dataset and write data with same type
-    let ds = file.new_dataset::<i32>()
-        .shape(5)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(5).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -233,10 +210,7 @@ fn test_builder_conversion_soft_allows_compatible_types() {
     let data: Vec<i32> = vec![1, 2, 3, 4, 5];
 
     // Create i32 dataset from i32 data (default soft conversion)
-    let ds = file.new_dataset::<i32>()
-        .shape(5)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(5).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -250,10 +224,7 @@ fn test_builder_conversion_soft_widening() {
     let data: Vec<i32> = vec![1, 2, 3, 4, 5];
 
     // Create i64 dataset from i32 data (widening conversion)
-    let ds = file.new_dataset::<i64>()
-        .shape(data.len())
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i64>().shape(data.len()).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -271,18 +242,15 @@ fn test_dataset_chunks_visit() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[10, 10])
-        .shape(&[10, 10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[10, 10]).shape(&[10, 10]).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     let mut visit_count = 0;
     ds.chunks_visit(|_chunk_info| {
         visit_count += 1;
-        0  // Continue iteration
-    }).unwrap();
+        0 // Continue iteration
+    })
+    .unwrap();
 
     assert!(visit_count > 0, "chunks_visit should visit at least one chunk");
 }
@@ -293,11 +261,7 @@ fn test_dataset_chunk_info_out_of_bounds() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[10, 10])
-        .shape(&[10, 10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[10, 10]).shape(&[10, 10]).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     // chunk_info() should return None for out-of-bounds index
@@ -311,11 +275,7 @@ fn test_dataset_chunk_info_valid() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[10, 10])
-        .shape(&[10, 10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[10, 10]).shape(&[10, 10]).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     // chunk_info() should return Some for valid index
@@ -332,11 +292,7 @@ fn test_dataset_num_chunks() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[10, 10])
-        .shape(&[10, 10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[10, 10]).shape(&[10, 10]).create("ds").unwrap();
     ds.write_raw(&data).unwrap();
 
     let num_chunks = ds.num_chunks();
@@ -349,10 +305,7 @@ fn test_dataset_chunk_returns_none_for_contiguous() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("ds").unwrap();
     ds.write(&data).unwrap();
 
     // chunk() should return None for contiguous dataset
@@ -368,7 +321,8 @@ fn test_dataset_chunk_opts() {
     let data: Vec<i32> = (0..100).collect();
 
     // Create dataset with ChunkOpts
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .chunk(10)
         .chunk_opts(ChunkOpts::default())
         .shape(&[100])
@@ -388,10 +342,7 @@ fn test_dataset_anonymous_creation() {
     let file = new_in_memory_file().unwrap();
 
     // Create anonymous dataset by passing None as name
-    let ds = file.new_dataset::<i32>()
-        .shape(&[10])
-        .create(None::<&str>)
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[10]).create(None::<&str>).unwrap();
 
     assert_eq!(ds.shape(), &[10]);
 
@@ -406,11 +357,7 @@ fn test_dataset_chunked_empty() {
 
     // Create empty chunked dataset (size 0)
     let data: Vec<i32> = vec![];
-    let ds = file.new_dataset::<i32>()
-        .chunk(10)
-        .shape(&[0])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(10).shape(&[0]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
     assert_eq!(ds.shape(), &[0]);
@@ -422,11 +369,7 @@ fn test_dataset_resizable_empty() {
 
     // Create empty resizable dataset
     let data: Vec<i32> = vec![];
-    let ds = file.new_dataset::<i32>()
-        .chunk(10)
-        .shape(&[0..])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(10).shape(&[0..]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -440,11 +383,7 @@ fn test_dataset_offset_chunked_is_none() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(10)
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(10).shape(&[100]).create("ds").unwrap();
     ds.write(&data).unwrap();
 
     // offset() should return None for chunked dataset
@@ -456,10 +395,7 @@ fn test_dataset_offset_contiguous_is_some() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("ds").unwrap();
     ds.write(&data).unwrap();
 
     // offset() should return Some for contiguous dataset
@@ -479,16 +415,9 @@ fn test_dataset_packed_compound() {
     }
 
     let file = new_in_memory_file().unwrap();
-    let data = vec![
-        PackedStruct { a: 1, b: 2, c: 3 },
-        PackedStruct { a: 4, b: 5, c: 6 },
-    ];
+    let data = vec![PackedStruct { a: 1, b: 2, c: 3 }, PackedStruct { a: 4, b: 5, c: 6 }];
 
-    let ds = file.new_dataset::<PackedStruct>()
-        .packed(true)
-        .shape(&[2])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<PackedStruct>().packed(true).shape(&[2]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -500,10 +429,7 @@ fn test_dataset_packed_compound() {
 fn test_dataset_scalar_creation() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(())
-        .create("scalar_ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(()).create("scalar_ds").unwrap();
 
     assert_eq!(ds.shape(), &[]);
     assert_eq!(ds.ndim(), 0);
@@ -515,10 +441,7 @@ fn test_dataset_scalar_with_data() {
     let file = new_in_memory_file().unwrap();
     let value: i32 = 42;
 
-    let ds = file.new_dataset::<i32>()
-        .shape(())
-        .create("scalar_ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(()).create("scalar_ds").unwrap();
 
     ds.write_scalar(&value).unwrap();
     assert_eq!(ds.shape(), &[]);
@@ -532,10 +455,7 @@ fn test_dataset_multi_dimensional() {
     let file = new_in_memory_file().unwrap();
     let data = Array2::from_shape_fn((5, 10), |(i, j)| (i * 10 + j) as i32);
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[5, 10])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[5, 10]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -553,7 +473,8 @@ fn test_builder_multiple_filters() {
     let data: Vec<i32> = (0..1000).collect();
 
     if hdf5::filters::deflate_available() {
-        let ds = file.new_dataset::<i32>()
+        let ds = file
+            .new_dataset::<i32>()
             .chunk(50)
             .shuffle()
             .deflate(3)
@@ -576,18 +497,15 @@ fn test_builder_fletcher32() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(20)
-        .fletcher32()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(20).fletcher32().shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
     let filters = ds.filters();
-    assert!(filters.iter().any(|f| matches!(f, hdf5::filters::Filter::Fletcher32)),
-            "Should have Fletcher32 filter");
+    assert!(
+        filters.iter().any(|f| matches!(f, hdf5::filters::Filter::Fletcher32)),
+        "Should have Fletcher32 filter"
+    );
 
     let read_data: Vec<i32> = ds.read_raw().unwrap();
     assert_eq!(read_data, data);
@@ -598,18 +516,15 @@ fn test_builder_nbit() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(20)
-        .nbit()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(20).nbit().shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
     let filters = ds.filters();
-    assert!(filters.iter().any(|f| matches!(f, hdf5::filters::Filter::NBit)),
-            "Should have NBit filter");
+    assert!(
+        filters.iter().any(|f| matches!(f, hdf5::filters::Filter::NBit)),
+        "Should have NBit filter"
+    );
 
     let read_data: Vec<i32> = ds.read_raw().unwrap();
     assert_eq!(read_data, data);
@@ -622,7 +537,8 @@ fn test_builder_scale_offset() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<f32> = (0..100).map(|i| i as f32).collect();
 
-    let ds = file.new_dataset::<f32>()
+    let ds = file
+        .new_dataset::<f32>()
         .chunk(20)
         .scale_offset(ScaleOffset::FloatDScale(2))
         .shape(&[100])
@@ -632,8 +548,10 @@ fn test_builder_scale_offset() {
     ds.write(&data).unwrap();
 
     let filters = ds.filters();
-    assert!(filters.iter().any(|f| matches!(f, hdf5::filters::Filter::ScaleOffset(_))),
-            "Should have ScaleOffset filter");
+    assert!(
+        filters.iter().any(|f| matches!(f, hdf5::filters::Filter::ScaleOffset(_))),
+        "Should have ScaleOffset filter"
+    );
 }
 
 #[test]
@@ -642,7 +560,8 @@ fn test_builder_clear_filters() {
     let data: Vec<i32> = (0..100).collect();
 
     if hdf5::filters::deflate_available() {
-        let ds = file.new_dataset::<i32>()
+        let ds = file
+            .new_dataset::<i32>()
             .chunk(20)
             .deflate(3)
             .clear_filters()
@@ -669,7 +588,8 @@ fn test_builder_set_filters() {
 
     let filters = vec![Filter::Shuffle];
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .chunk(20)
         .set_filters(&filters)
         .shape(&[100])
@@ -689,7 +609,8 @@ fn test_builder_alloc_time() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .chunk(20)
         .alloc_time(Some(AllocTime::Early))
         .shape(&[100])
@@ -709,7 +630,8 @@ fn test_builder_fill_time() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .chunk(20)
         .fill_time(FillTime::Alloc)
         .shape(&[100])
@@ -726,11 +648,7 @@ fn test_builder_fill_time() {
 fn test_builder_attr_phase_change() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .attr_phase_change(8, 5)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).attr_phase_change(8, 5).create("ds").unwrap();
 
     let dcpl = ds.create_plist().unwrap();
     let phase_change = dcpl.attr_phase_change();
@@ -744,7 +662,8 @@ fn test_builder_attr_creation_order() {
 
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .shape(&[100])
         .attr_creation_order(AttrCreationOrder::TRACKED | AttrCreationOrder::INDEXED)
         .create("ds")
@@ -759,11 +678,7 @@ fn test_builder_attr_creation_order() {
 fn test_builder_obj_track_times() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .obj_track_times(true)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).obj_track_times(true).create("ds").unwrap();
 
     let dcpl = ds.create_plist().unwrap();
     assert_eq!(dcpl.obj_track_times(), true);
@@ -776,11 +691,7 @@ fn test_builder_layout_compact() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = vec![1, 2, 3, 4, 5];
 
-    let ds = file.new_dataset::<i32>()
-        .layout(Layout::Compact)
-        .shape(&[5])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().layout(Layout::Compact).shape(&[5]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -795,11 +706,8 @@ fn test_builder_layout_contiguous() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .layout(Layout::Contiguous)
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds =
+        file.new_dataset::<i32>().layout(Layout::Contiguous).shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -814,7 +722,8 @@ fn test_builder_layout_chunked() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .layout(Layout::Chunked)
         .chunk(&[20])
         .shape(&[100])
@@ -832,11 +741,7 @@ fn test_builder_chunk_min_kb() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..1000).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk_min_kb(1)
-        .shape(&[1000])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk_min_kb(1).shape(&[1000]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -852,11 +757,7 @@ fn test_builder_chunk_min_kb() {
 fn test_builder_efile_prefix() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .efile_prefix("/tmp")
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).efile_prefix("/tmp").create("ds").unwrap();
 
     // Verify the DAPL has the prefix set
     let dapl = ds.access_plist().unwrap();
@@ -869,11 +770,7 @@ fn test_builder_efile_prefix() {
 fn test_builder_virtual_printf_gap() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .virtual_printf_gap(100)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).virtual_printf_gap(100).create("ds").unwrap();
 
     // Verify the DAPL has the gap set
     let dapl = ds.access_plist().unwrap();
@@ -885,11 +782,8 @@ fn test_builder_virtual_printf_gap() {
 fn test_builder_all_coll_metadata_ops() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .all_coll_metadata_ops(true)
-        .create("ds")
-        .unwrap();
+    let ds =
+        file.new_dataset::<i32>().shape(&[100]).all_coll_metadata_ops(true).create("ds").unwrap();
 
     // Verify the DAPL has the setting
     let dapl = ds.access_plist().unwrap();
@@ -900,7 +794,8 @@ fn test_builder_all_coll_metadata_ops() {
 fn test_builder_chunk_cache() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
+    let ds = file
+        .new_dataset::<i32>()
         .shape(&[100])
         .chunk_cache(100, 1024 * 1024, 0.75)
         .create("ds")
@@ -916,10 +811,7 @@ fn test_builder_create_intermediate_group() {
     let file = new_in_memory_file().unwrap();
 
     // This should create intermediate groups
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("group1/group2/ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("group1/group2/ds").unwrap();
 
     assert!(file.group("group1").is_ok(), "Intermediate group should be created");
     assert!(file.group("group1/group2").is_ok(), "Nested intermediate group should be created");
@@ -931,7 +823,8 @@ fn test_builder_char_encoding() {
 
     let file = new_in_memory_file().unwrap();
 
-    let _ds = file.new_dataset::<i32>()
+    let _ds = file
+        .new_dataset::<i32>()
         .shape(&[100])
         .char_encoding(CharEncoding::Utf8)
         .create("ds")
@@ -947,10 +840,7 @@ fn test_dataset_access_plist() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -968,10 +858,7 @@ fn test_dataset_create_plist() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -989,18 +876,11 @@ fn test_dataset_is_resizable() {
     let file = new_in_memory_file().unwrap();
 
     // Non-resizable dataset
-    let ds1 = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds1")
-        .unwrap();
+    let ds1 = file.new_dataset::<i32>().shape(&[100]).create("ds1").unwrap();
     assert!(!ds1.is_resizable(), "Fixed-size dataset should not be resizable");
 
     // Resizable dataset
-    let ds2 = file.new_dataset::<i32>()
-        .chunk(10)
-        .shape(&[100..])
-        .create("ds2")
-        .unwrap();
+    let ds2 = file.new_dataset::<i32>().chunk(10).shape(&[100..]).create("ds2").unwrap();
     assert!(ds2.is_resizable(), "Dataset with max dimension should be resizable");
 }
 
@@ -1009,18 +889,11 @@ fn test_dataset_is_chunked() {
     let file = new_in_memory_file().unwrap();
 
     // Contiguous dataset
-    let ds1 = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds1")
-        .unwrap();
+    let ds1 = file.new_dataset::<i32>().shape(&[100]).create("ds1").unwrap();
     assert!(!ds1.is_chunked(), "Contiguous dataset should not be chunked");
 
     // Chunked dataset
-    let ds2 = file.new_dataset::<i32>()
-        .chunk(10)
-        .shape(&[100])
-        .create("ds2")
-        .unwrap();
+    let ds2 = file.new_dataset::<i32>().chunk(10).shape(&[100]).create("ds2").unwrap();
     assert!(ds2.is_chunked(), "Chunked dataset should be chunked");
 }
 
@@ -1028,11 +901,7 @@ fn test_dataset_is_chunked() {
 fn test_dataset_chunk_shape() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .chunk(&[10, 20])
-        .shape(&[30, 40])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().chunk(&[10, 20]).shape(&[30, 40]).create("ds").unwrap();
 
     assert_eq!(ds.chunk().unwrap(), vec![10, 20]);
 }
@@ -1042,10 +911,7 @@ fn test_dataset_filters_empty() {
     let file = new_in_memory_file().unwrap();
     let data: Vec<i32> = (0..100).collect();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[100]).create("ds").unwrap();
 
     ds.write(&data).unwrap();
 
@@ -1086,10 +952,7 @@ fn test_builder_all_blosc_variants() {
 fn test_dataset_size() {
     let file = new_in_memory_file().unwrap();
 
-    let ds = file.new_dataset::<i32>()
-        .shape(&[10, 20, 30])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[10, 20, 30]).create("ds").unwrap();
 
     assert_eq!(ds.size(), 10 * 20 * 30);
 }
@@ -1116,11 +979,7 @@ fn test_dataset_empty_as_with_type_descriptor() {
 
     // Create empty dataset with custom type descriptor
     let type_desc = i32::type_descriptor();
-    let ds = file.new_dataset_builder()
-        .empty_as(&type_desc)
-        .shape(&[100])
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset_builder().empty_as(&type_desc).shape(&[100]).create("ds").unwrap();
 
     assert_eq!(ds.shape(), &[100]);
 }
@@ -1136,10 +995,7 @@ fn test_dataset_with_data_as() {
     let type_desc = i32::type_descriptor();
     let arr: ArrayView1<i32> = ArrayView1::from(&data[..]);
 
-    let ds = file.new_dataset_builder()
-        .with_data_as(arr, &type_desc)
-        .create("ds")
-        .unwrap();
+    let ds = file.new_dataset_builder().with_data_as(arr, &type_desc).create("ds").unwrap();
 
     let read_data: Vec<i32> = ds.read_raw().unwrap();
     assert_eq!(read_data, data);
@@ -1213,13 +1069,12 @@ fn test_table_driven_read_write_roundtrip() {
 
         if test.chunked && !test.shape.is_empty() {
             // Use shape/2 as chunk size, minimum 1
-            let chunk: Vec<usize> = test.shape.iter()
-                .map(|&s| std::cmp::max(1, s / 2))
-                .collect();
+            let chunk: Vec<usize> = test.shape.iter().map(|&s| std::cmp::max(1, s / 2)).collect();
             builder = builder.chunk(chunk.as_slice());
         }
 
-        let ds = builder.shape(test.shape.as_slice())
+        let ds = builder
+            .shape(test.shape.as_slice())
             .create(test.name)
             .unwrap_or_else(|e| panic!("Test '{}' create failed: {}", test.name, e));
 
@@ -1322,7 +1177,9 @@ fn test_table_driven_error_paths() {
                 assert!(
                     err_msg.contains(test.expected_error),
                     "Test '{}' expected error containing '{}', got: {}",
-                    test.name, test.expected_error, err_msg
+                    test.name,
+                    test.expected_error,
+                    err_msg
                 );
             }
         }
@@ -1501,10 +1358,7 @@ fn test_table_driven_slice_operations() {
     let file = new_in_memory_file().unwrap();
     let data = TestData::int_2d(10, 10);
 
-    let ds = file.new_dataset_builder()
-        .with_data(&data)
-        .create("slice_test")
-        .unwrap();
+    let ds = file.new_dataset_builder().with_data(&data).create("slice_test").unwrap();
 
     // Read a row
     let row: Array1<i32> = ds.read_slice_1d(s![0, ..]).unwrap();
@@ -1530,10 +1384,7 @@ fn test_table_driven_slice_operations() {
 #[test]
 fn test_table_driven_container_methods() {
     let file = new_in_memory_file().unwrap();
-    let ds = file.new_dataset::<i32>()
-        .shape((5, 10))
-        .create("container_test")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape((5, 10)).create("container_test").unwrap();
 
     ds.write_raw(&vec![0i32; 50]).unwrap();
 
@@ -1559,10 +1410,7 @@ fn test_table_driven_container_methods() {
 #[test]
 fn test_table_driven_reader_writer() {
     let file = new_in_memory_file().unwrap();
-    let ds = file.new_dataset::<i32>()
-        .shape(100)
-        .create("rw_test")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(100).create("rw_test").unwrap();
 
     // Writer operations
     let writer = ds.as_writer();
@@ -1588,10 +1436,7 @@ fn test_table_driven_byte_reader() {
     use std::io::{Read, Seek, SeekFrom};
 
     let file = new_in_memory_file().unwrap();
-    let ds = file.new_dataset::<u8>()
-        .shape(100)
-        .create("byte_reader_test")
-        .unwrap();
+    let ds = file.new_dataset::<u8>().shape(100).create("byte_reader_test").unwrap();
 
     let data: Vec<u8> = (0..100).collect();
     ds.write(&data).unwrap();
@@ -1684,11 +1529,7 @@ fn test_table_driven_fill_time() {
         // Verify the FillTime property
         let dcpl = ds.create_plist().expect("Failed to get DCPL");
         let actual_fill_time = dcpl.fill_time();
-        assert_eq!(
-            actual_fill_time, fill_time,
-            "Test '{}': FillTime mismatch",
-            case.name
-        );
+        assert_eq!(actual_fill_time, fill_time, "Test '{}': FillTime mismatch", case.name);
     }
 }
 
@@ -1781,11 +1622,7 @@ fn test_table_driven_filter_combinations() {
                 filters.len()
             );
         } else {
-            assert!(
-                result.is_err(),
-                "Test '{}' expected to fail but succeeded",
-                case.name
-            );
+            assert!(result.is_err(), "Test '{}' expected to fail but succeeded", case.name);
         }
     }
 }
@@ -1835,17 +1672,9 @@ fn test_table_driven_layout() {
                 "compact" => Layout::Compact,
                 _ => panic!("Unknown layout: {}", case.layout),
             };
-            assert_eq!(
-                actual_layout, expected_layout,
-                "Test '{}': Layout mismatch",
-                case.name
-            );
+            assert_eq!(actual_layout, expected_layout, "Test '{}': Layout mismatch", case.name);
         } else {
-            assert!(
-                result.is_err(),
-                "Test '{}' expected to fail but succeeded",
-                case.name
-            );
+            assert!(result.is_err(), "Test '{}' expected to fail but succeeded", case.name);
         }
     }
 }
@@ -1925,10 +1754,7 @@ fn test_table_driven_resize_operations() {
 
         if case.should_succeed {
             result.unwrap_or_else(|e| {
-                panic!(
-                    "Test '{}' resize expected to succeed but failed: {}",
-                    case.name, e
-                )
+                panic!("Test '{}' resize expected to succeed but failed: {}", case.name, e)
             });
 
             // Verify new shape
@@ -1939,11 +1765,7 @@ fn test_table_driven_resize_operations() {
                 case.name
             );
         } else {
-            assert!(
-                result.is_err(),
-                "Test '{}' resize expected to fail but succeeded",
-                case.name
-            );
+            assert!(result.is_err(), "Test '{}' resize expected to fail but succeeded", case.name);
         }
     }
 }
@@ -1965,19 +1787,13 @@ fn test_table_driven_conversion_modes() -> Result<(), Box<dyn std::error::Error>
         let result: Result<hdf5::Dataset, hdf5::Error> = match case.source_type {
             "i32" => {
                 let data: Vec<i32> = (0..10).collect();
-                let ds = file
-                    .new_dataset::<i32>()
-                    .shape(10)
-                    .create(case.name)?;
+                let ds = file.new_dataset::<i32>().shape(10).create(case.name)?;
                 ds.write(&data)?;
                 Ok(ds)
             }
             "i64" => {
                 let data: Vec<i64> = (0..10).collect();
-                let ds = file
-                    .new_dataset::<i64>()
-                    .shape(10)
-                    .create(case.name)?;
+                let ds = file.new_dataset::<i64>().shape(10).create(case.name)?;
                 ds.write(&data)?;
                 Ok(ds)
             }
@@ -1989,28 +1805,19 @@ fn test_table_driven_conversion_modes() -> Result<(), Box<dyn std::error::Error>
             }
             "u32" => {
                 let data: Vec<u32> = (0..10).collect();
-                let ds = file
-                    .new_dataset::<u32>()
-                    .shape(10)
-                    .create(case.name)?;
+                let ds = file.new_dataset::<u32>().shape(10).create(case.name)?;
                 ds.write(&data)?;
                 Ok(ds)
             }
             "f32" => {
                 let data: Vec<f32> = (0..10).map(|i| i as f32).collect();
-                let ds = file
-                    .new_dataset::<f32>()
-                    .shape(10)
-                    .create(case.name)?;
+                let ds = file.new_dataset::<f32>().shape(10).create(case.name)?;
                 ds.write(&data)?;
                 Ok(ds)
             }
             "f64" => {
                 let data: Vec<f64> = (0..10).map(|i| i as f64).collect();
-                let ds = file
-                    .new_dataset::<f64>()
-                    .shape(10)
-                    .create(case.name)?;
+                let ds = file.new_dataset::<f64>().shape(10).create(case.name)?;
                 ds.write(&data)?;
                 Ok(ds)
             }
@@ -2042,48 +1849,28 @@ fn test_table_driven_edge_cases() {
     let file = new_in_memory_file().expect("Failed to create file");
 
     // Test: Very large chunk size
-    let ds = file
-        .new_dataset::<i32>()
-        .chunk(&[100000])
-        .shape(&[100000])
-        .create("large_chunk")
-        .unwrap();
+    let ds =
+        file.new_dataset::<i32>().chunk(&[100000]).shape(&[100000]).create("large_chunk").unwrap();
     assert!(ds.is_chunked());
     assert_eq!(ds.chunk().unwrap(), vec![100000]);
 
     // Test: Chunk equal to data size
-    let ds = file
-        .new_dataset::<i32>()
-        .chunk(&[100])
-        .shape(&[100])
-        .create("chunk_equals_data")
-        .unwrap();
+    let ds =
+        file.new_dataset::<i32>().chunk(&[100]).shape(&[100]).create("chunk_equals_data").unwrap();
     assert_eq!(ds.chunk().unwrap(), vec![100]);
 
     // Test: Multi-dimensional chunk with size 1 in some dimensions
-    let ds = file
-        .new_dataset::<i32>()
-        .chunk(&[1, 50])
-        .shape(&[100, 50])
-        .create("chunk_1x50")
-        .unwrap();
+    let ds =
+        file.new_dataset::<i32>().chunk(&[1, 50]).shape(&[100, 50]).create("chunk_1x50").unwrap();
     assert_eq!(ds.chunk().unwrap(), vec![1, 50]);
 
     // Test: Very small dataset (single element)
-    let ds = file
-        .new_dataset::<i32>()
-        .shape(&[1])
-        .create("single_element")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[1]).create("single_element").unwrap();
     assert_eq!(ds.shape(), &[1]);
     assert_eq!(ds.size(), 1);
 
     // Test: Zero-sized dimension
-    let ds = file
-        .new_dataset::<i32>()
-        .shape(&[0])
-        .create("zero_sized")
-        .unwrap();
+    let ds = file.new_dataset::<i32>().shape(&[0]).create("zero_sized").unwrap();
     assert_eq!(ds.shape(), &[0]);
     assert_eq!(ds.size(), 0);
 }
@@ -2128,10 +1915,7 @@ fn test_table_driven_filter_pipeline_order() {
         .position(|f| matches!(f, Filter::Shuffle))
         .expect("Should have Shuffle filter");
 
-    assert!(
-        shuffle_idx < deflate_idx,
-        "Shuffle should come before Deflate in the filter pipeline"
-    );
+    assert!(shuffle_idx < deflate_idx, "Shuffle should come before Deflate in the filter pipeline");
 }
 
 // ============================================================================
@@ -2225,11 +2009,10 @@ fn test_table_driven_anonymous_dataset_properties() {
     ];
 
     for (name, shape) in configs {
-        let ds = file
-            .new_dataset::<i32>()
-            .shape(shape.as_slice())
-            .create(None::<&str>)
-            .unwrap_or_else(|e| panic!("Anonymous dataset creation failed for {}: {}", name, e));
+        let ds =
+            file.new_dataset::<i32>().shape(shape.as_slice()).create(None::<&str>).unwrap_or_else(
+                |e| panic!("Anonymous dataset creation failed for {}: {}", name, e),
+            );
 
         assert_eq!(ds.shape(), shape);
         assert_eq!(ds.ndim(), shape.len());

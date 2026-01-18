@@ -338,7 +338,9 @@ macro_rules! impl_tuple_n {
     ([$t0:ident, $t1:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
         unsafe impl<$t0, $t1> H5Type for ($t0, $t1)
-            where $t0: H5Type, $t1: H5Type
+        where
+            $t0: H5Type,
+            $t1: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -365,7 +367,10 @@ macro_rules! impl_tuple_n {
     ([$t0:ident, $t1:ident, $t2:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
         unsafe impl<$t0, $t1, $t2> H5Type for ($t0, $t1, $t2)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -398,7 +403,11 @@ macro_rules! impl_tuple_n {
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
         unsafe impl<$t0, $t1, $t2, $t3> H5Type for ($t0, $t1, $t2, $t3)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -437,7 +446,12 @@ macro_rules! impl_tuple_n {
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
         unsafe impl<$t0, $t1, $t2, $t3, $t4> H5Type for ($t0, $t1, $t2, $t3, $t4)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -482,7 +496,13 @@ macro_rules! impl_tuple_n {
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
         unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -532,8 +552,16 @@ macro_rules! impl_tuple_n {
     // 7-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -589,8 +617,17 @@ macro_rules! impl_tuple_n {
     // 8-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
+            $t7: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -652,8 +689,18 @@ macro_rules! impl_tuple_n {
     // 9-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
+            $t7: H5Type,
+            $t8: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -721,8 +768,19 @@ macro_rules! impl_tuple_n {
     // 10-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
+            $t7: H5Type,
+            $t8: H5Type,
+            $t9: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -796,8 +854,20 @@ macro_rules! impl_tuple_n {
     // 11-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident, $t10:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type, $t10: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
+            $t7: H5Type,
+            $t8: H5Type,
+            $t9: H5Type,
+            $t10: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -877,8 +947,21 @@ macro_rules! impl_tuple_n {
     // 12-tuple
     ([$t0:ident, $t1:ident, $t2:ident, $t3:ident, $t4:ident, $t5:ident, $t6:ident, $t7:ident, $t8:ident, $t9:ident, $t10:ident, $t11:ident] $($_idx:tt)*) => {
         #[allow(dead_code, unused_variables)]
-        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11> H5Type for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11)
-            where $t0: H5Type, $t1: H5Type, $t2: H5Type, $t3: H5Type, $t4: H5Type, $t5: H5Type, $t6: H5Type, $t7: H5Type, $t8: H5Type, $t9: H5Type, $t10: H5Type, $t11: H5Type
+        unsafe impl<$t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11> H5Type
+            for ($t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7, $t8, $t9, $t10, $t11)
+        where
+            $t0: H5Type,
+            $t1: H5Type,
+            $t2: H5Type,
+            $t3: H5Type,
+            $t4: H5Type,
+            $t5: H5Type,
+            $t6: H5Type,
+            $t7: H5Type,
+            $t8: H5Type,
+            $t9: H5Type,
+            $t10: H5Type,
+            $t11: H5Type,
         {
             fn type_descriptor() -> TypeDescriptor {
                 let mut fields = vec![
@@ -1230,18 +1313,10 @@ pub mod tests {
     #[test]
     pub fn test_enum_type_base_type() {
         use super::EnumType;
-        let enum_type = EnumType {
-            size: IntSize::U4,
-            signed: false,
-            members: vec![],
-        };
+        let enum_type = EnumType { size: IntSize::U4, signed: false, members: vec![] };
         assert_eq!(enum_type.base_type(), TD::Unsigned(IntSize::U4));
 
-        let signed_enum = EnumType {
-            size: IntSize::U2,
-            signed: true,
-            members: vec![],
-        };
+        let signed_enum = EnumType { size: IntSize::U2, signed: true, members: vec![] };
         assert_eq!(signed_enum.base_type(), TD::Integer(IntSize::U2));
     }
 
@@ -1249,10 +1324,7 @@ pub mod tests {
     pub fn test_compound_type_new() {
         let field1 = CompoundField::new("a", TD::Integer(IntSize::U4), 0, 0);
         let field2 = CompoundField::new("b", TD::Float(FloatSize::U8), 4, 1);
-        let compound = CompoundType {
-            fields: vec![field1, field2],
-            size: 12,
-        };
+        let compound = CompoundType { fields: vec![field1, field2], size: 12 };
         assert_eq!(compound.fields.len(), 2);
         assert_eq!(compound.size, 12);
     }
@@ -1376,20 +1448,14 @@ pub mod tests {
     #[test]
     pub fn test_type_descriptor_display_enum() {
         use super::EnumType;
-        let enum_type = EnumType {
-            size: IntSize::U4,
-            signed: false,
-            members: vec![],
-        };
+        let enum_type = EnumType { size: IntSize::U4, signed: false, members: vec![] };
         assert_eq!(format!("{}", TD::Enum(enum_type)), "enum (uint32)");
     }
 
     #[test]
     pub fn test_type_descriptor_display_compound() {
-        let compound = CompoundType {
-            fields: vec![CompoundField::typed::<u32>("x", 0, 0)],
-            size: 4,
-        };
+        let compound =
+            CompoundType { fields: vec![CompoundField::typed::<u32>("x", 0, 0)], size: 4 };
         assert_eq!(format!("{}", TD::Compound(compound)), "compound (1 fields)");
     }
 

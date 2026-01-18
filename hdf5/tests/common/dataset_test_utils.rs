@@ -355,11 +355,7 @@ pub fn validate_builder_test(case: &BuilderTestCase, result: Result<Dataset>) {
                 // For 2D+ datasets, use write_raw which accepts a flat slice
                 ds.write_raw(&data).expect("Write should succeed");
                 let read_data: Vec<i32> = ds.read_raw().expect("Read should succeed");
-                assert_eq!(
-                    data, read_data,
-                    "Test '{}': Data round-trip failed",
-                    case.name
-                );
+                assert_eq!(data, read_data, "Test '{}': Data round-trip failed", case.name);
             }
         }
     }
@@ -794,14 +790,10 @@ impl AllocTimeTestCase {
 /// Standard AllocTime test cases.
 pub fn alloc_time_test_cases() -> Vec<AllocTimeTestCase> {
     vec![
-        AllocTimeTestCase::new("alloc_none", None)
-            .description("Default (no explicit AllocTime)"),
-        AllocTimeTestCase::new("alloc_early", Some("early"))
-            .description("Allocate space early"),
-        AllocTimeTestCase::new("alloc_late", Some("late"))
-            .description("Allocate space late"),
-        AllocTimeTestCase::new("alloc_incr", Some("incr"))
-            .description("Incremental allocation"),
+        AllocTimeTestCase::new("alloc_none", None).description("Default (no explicit AllocTime)"),
+        AllocTimeTestCase::new("alloc_early", Some("early")).description("Allocate space early"),
+        AllocTimeTestCase::new("alloc_late", Some("late")).description("Allocate space late"),
+        AllocTimeTestCase::new("alloc_incr", Some("incr")).description("Incremental allocation"),
     ]
 }
 
@@ -833,10 +825,8 @@ pub fn fill_time_test_cases() -> Vec<FillTimeTestCase> {
     vec![
         FillTimeTestCase::new("fill_ifset", "ifset")
             .description("Fill only when fill value is set"),
-        FillTimeTestCase::new("fill_alloc", "alloc")
-            .description("Fill on allocation"),
-        FillTimeTestCase::new("fill_never", "never")
-            .description("Never fill"),
+        FillTimeTestCase::new("fill_alloc", "alloc").description("Fill on allocation"),
+        FillTimeTestCase::new("fill_never", "never").description("Never fill"),
     ]
 }
 
@@ -857,14 +847,7 @@ pub struct ChunkMinKBTestCase {
 
 impl ChunkMinKBTestCase {
     pub fn new(name: &'static str, kb: usize, dtype_size: usize, shape: Vec<usize>) -> Self {
-        Self {
-            name,
-            kb,
-            dtype_size,
-            shape,
-            description: "",
-            expect_chunked: true,
-        }
+        Self { name, kb, dtype_size, shape, description: "", expect_chunked: true }
     }
 
     pub fn description(mut self, desc: &'static str) -> Self {
@@ -964,8 +947,7 @@ pub fn filter_combo_test_cases() -> Vec<FilterComboTestCase> {
             .description("Shuffle filter only"),
         FilterComboTestCase::new("filter_fletcher32_only", vec!["fletcher32"])
             .description("Fletcher32 checksum filter only"),
-        FilterComboTestCase::new("filter_nbit_only", vec!["nbit"])
-            .description("NBit filter only"),
+        FilterComboTestCase::new("filter_nbit_only", vec!["nbit"]).description("NBit filter only"),
         // Common combinations - shuffle before deflate in pipeline means we list shuffle first
         // The builder applies them in reverse, so this creates the correct pipeline order
         FilterComboTestCase::new("filter_shuffle_deflate", vec!["shuffle", "deflate"])
@@ -981,10 +963,13 @@ pub fn filter_combo_test_cases() -> Vec<FilterComboTestCase> {
             .chunk(vec![10])
             .shape(vec![100]),
         // Triple combinations
-        FilterComboTestCase::new("filter_shuffle_fletcher32_deflate", vec!["shuffle", "fletcher32", "deflate"])
-            .description("Shuffle + Fletcher32 + Deflate")
-            .chunk(vec![10])
-            .shape(vec![100]),
+        FilterComboTestCase::new(
+            "filter_shuffle_fletcher32_deflate",
+            vec!["shuffle", "fletcher32", "deflate"],
+        )
+        .description("Shuffle + Fletcher32 + Deflate")
+        .chunk(vec![10])
+        .shape(vec![100]),
     ]
 }
 
@@ -1006,14 +991,7 @@ pub struct ResizeTestCase {
 impl ResizeTestCase {
     pub fn new(name: &'static str, initial_shape: Vec<usize>, new_shape: Vec<usize>) -> Self {
         let resizable = vec![false; initial_shape.len()];
-        Self {
-            name,
-            initial_shape,
-            resizable,
-            new_shape,
-            should_succeed: true,
-            description: "",
-        }
+        Self { name, initial_shape, resizable, new_shape, should_succeed: true, description: "" }
     }
 
     pub fn resizable(mut self, resizable: Vec<bool>) -> Self {
@@ -1078,14 +1056,7 @@ pub struct LayoutTestCase {
 
 impl LayoutTestCase {
     pub fn new(name: &'static str, layout: &'static str, shape: Vec<usize>) -> Self {
-        Self {
-            name,
-            layout,
-            shape,
-            chunk: None,
-            description: "",
-            should_succeed: true,
-        }
+        Self { name, layout, shape, chunk: None, description: "", should_succeed: true }
     }
 
     pub fn chunk(mut self, chunk: Vec<usize>) -> Self {
@@ -1155,9 +1126,7 @@ mod tests {
 
     #[test]
     fn test_dataset_setup_builder() {
-        let setup = DatasetSetup::new(vec![100])
-            .chunked(vec![10])
-            .with_data();
+        let setup = DatasetSetup::new(vec![100]).chunked(vec![10]).with_data();
 
         assert_eq!(setup.shape, vec![100]);
         assert_eq!(setup.chunk, Some(vec![10]));

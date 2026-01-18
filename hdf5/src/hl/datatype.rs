@@ -458,21 +458,15 @@ pub mod tests {
     #[test]
     pub fn test_option_conversion_partial_cmp() {
         // Option<Conversion> partial cmp with Conversion
-        assert_eq!(Option::<Conversion>::None.partial_cmp(&Conversion::NoOp), Some(Ordering::Greater));
-        // NoOp < Hard < Soft
         assert_eq!(
-            Some(Conversion::NoOp).partial_cmp(&Conversion::Hard),
-            Some(Ordering::Less)
-        );
-        assert_eq!(
-            Some(Conversion::Hard).partial_cmp(&Conversion::Soft),
-            Some(Ordering::Less)
-        );
-        // Greater cases
-        assert_eq!(
-            Some(Conversion::Soft).partial_cmp(&Conversion::Hard),
+            Option::<Conversion>::None.partial_cmp(&Conversion::NoOp),
             Some(Ordering::Greater)
         );
+        // NoOp < Hard < Soft
+        assert_eq!(Some(Conversion::NoOp).partial_cmp(&Conversion::Hard), Some(Ordering::Less));
+        assert_eq!(Some(Conversion::Hard).partial_cmp(&Conversion::Soft), Some(Ordering::Less));
+        // Greater cases
+        assert_eq!(Some(Conversion::Soft).partial_cmp(&Conversion::Hard), Some(Ordering::Greater));
     }
 
     #[test]
@@ -672,7 +666,10 @@ pub mod tests {
         let desc = hdf5_types::TypeDescriptor::VarLenAscii;
         let dt = Datatype::from_descriptor(&desc).unwrap();
         // VarLen strings have pointer size
-        assert!(dt.size() == std::mem::size_of::<*const u8>() || dt.size() == std::mem::size_of::<usize>());
+        assert!(
+            dt.size() == std::mem::size_of::<*const u8>()
+                || dt.size() == std::mem::size_of::<usize>()
+        );
     }
 
     #[test]
