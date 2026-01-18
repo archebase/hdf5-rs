@@ -77,7 +77,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build and test
-        run: cargo test --workspace --exclude hdf5-src --features hdf5-sys/static,hdf5-sys/zlib
+        run: cargo test --features hdf5-sys/static,hdf5-sys/zlib
 
   # ==============================================================================
   # Test MSRV
