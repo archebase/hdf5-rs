@@ -19,7 +19,9 @@ impl ObjectClass for Object {
         &self.0
     }
 
-    // TODO: short_repr()
+    fn short_repr(&self) -> Option<String> {
+        Some(format!("<object id={}>", self.id()))
+    }
 }
 
 impl Debug for Object {

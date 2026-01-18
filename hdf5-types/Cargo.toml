@@ -32,3 +32,9 @@ unindent = "0.2"
 
 [package.metadata.docs.rs]
 features = ["f16", "complex"]
+
+[lints.rust]
+# windows_dll cfg is set dynamically by build script
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(windows_dll)',
+] }

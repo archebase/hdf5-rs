@@ -1,4 +1,5 @@
 //! Creating and manipulating HDF5 files
+#![allow(clippy::derivable_impls)]
 use std::mem;
 
 pub use self::H5F_close_degree_t::*;

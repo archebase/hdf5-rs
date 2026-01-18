@@ -1,4 +1,5 @@
 //! Creating and manipulating scientific datasets
+#![allow(clippy::derivable_impls)]
 pub use self::H5D_alloc_time_t::*;
 pub use self::H5D_fill_time_t::*;
 pub use self::H5D_fill_value_t::*;

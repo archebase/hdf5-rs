@@ -1,0 +1,211 @@
+/// Multi-threaded and concurrent access tests for HDF5-Rust.
+///
+/// These tests verify thread-safety claims and ensure the library works correctly
+/// in multi-threaded environments.
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Barrier};
+use std::thread;
+
+use hdf5::File;
+
+/// Test concurrent file creation from multiple threads
+#[test]
+fn test_concurrent_file_creation() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let num_threads = 10;
+    let barrier = Arc::new(Barrier::new(num_threads));
+    let mut handles = vec![];
+
+    for i in 0..num_threads {
+        let barrier = barrier.clone();
+        let temp_dir = temp_dir.path().to_path_buf();
+        handles.push(thread::spawn(move || {
+            barrier.wait();
+            let file_path = temp_dir.join(format!("test_{}.h5", i));
+            let file = File::create(&file_path).unwrap();
+            file.new_dataset::<i32>().shape(10).create("ds").unwrap();
+            file
+        }));
+    }
+
+    // Verify all threads succeeded
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}
+
+/// Test concurrent reads from the same file
+#[test]
+fn test_concurrent_read_same_file() {
+    with_tmp_file(|file| {
+        // Create a dataset with known data
+        let ds = file.new_dataset::<i32>().shape(100).create("data").unwrap();
+        let data: Vec<i32> = (0..100).collect();
+        ds.write(&data).unwrap();
+
+        let file = Arc::new(file);
+        let num_threads = 10;
+        let barrier = Arc::new(Barrier::new(num_threads));
+        let mut handles = vec![];
+
+        for _ in 0..num_threads {
+            let file = file.clone();
+            let barrier = barrier.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                let ds = file.dataset("data").unwrap();
+                let result = ds.read_1d::<i32>().unwrap();
+                assert_eq!(result.as_slice().unwrap(), (0..100).collect::<Vec<i32>>().as_slice());
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    });
+}
+
+/// Test concurrent writes to different datasets in the same file
+#[test]
+fn test_concurrent_write_different_datasets() {
+    with_tmp_file(|file| {
+        let num_threads = 10;
+        let barrier = Arc::new(Barrier::new(num_threads + 1));
+        let mut handles = vec![];
+
+        // First create all datasets
+        for i in 0..num_threads {
+            file.new_dataset::<i32>().shape(10).create(format!("ds{}", i).as_str())
+                .unwrap();
+        }
+
+        let file = Arc::new(file);
+
+        for i in 0..num_threads {
+            let file = file.clone();
+            let barrier = barrier.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                let ds = file.dataset(&format!("ds{}", i)).unwrap();
+                let data: Vec<i32> = vec![i as i32; 10];
+                ds.write(&data).unwrap();
+            }));
+        }
+
+        barrier.wait(); // Wait for all threads to be ready
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify all data was written correctly
+        for i in 0..num_threads {
+            let ds = file.dataset(&format!("ds{}", i)).unwrap();
+            let result = ds.read_1d::<i32>().unwrap();
+            assert_eq!(result.as_slice().unwrap(), vec![i as i32; 10].as_slice());
+        }
+    });
+}
+
+/// Test concurrent group creation and iteration
+#[test]
+fn test_concurrent_group_operations() {
+    with_tmp_file(|file| {
+        let num_threads = 5;
+        let groups_per_thread = 3;
+        let counter = Arc::new(AtomicUsize::new(0));
+        let barrier = Arc::new(Barrier::new(num_threads));
+        let mut handles = vec![];
+
+        let file = Arc::new(file);
+
+        for thread_id in 0..num_threads {
+            let file = file.clone();
+            let barrier = barrier.clone();
+            let counter = counter.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+
+                for i in 0..groups_per_thread {
+                    let group_name = format!("group_t{}_{}", thread_id, i);
+                    file.create_group(&group_name).unwrap();
+                    counter.fetch_add(1, Ordering::Relaxed);
+                }
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(counter.load(Ordering::Relaxed), num_threads * groups_per_thread);
+        assert_eq!(file.len() as usize, num_threads * groups_per_thread);
+    });
+}
+
+/// Test stress test: Many concurrent operations
+#[test]
+fn test_stress_concurrent_operations() {
+    with_tmp_file(|file| {
+        let num_operations = 50;
+        let num_threads = 5;
+        let barrier = Arc::new(Barrier::new(num_threads));
+        let mut handles = vec![];
+
+        let file = Arc::new(file);
+
+        for thread_id in 0..num_threads {
+            let file = file.clone();
+            let barrier = barrier.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+
+                for i in 0..num_operations {
+                    let group_name = format!("g_t{}_{}", thread_id, i);
+                    let group = file.create_group(&group_name).unwrap();
+
+                    let ds_name = format!("ds_t{}_{}", thread_id, i);
+                    group.new_dataset::<f32>().shape(5).create(ds_name.as_str()).unwrap();
+
+                    // Verify we can read it back
+                    let g = file.group(&group_name).unwrap();
+                    let ds = g.dataset(&ds_name).unwrap();
+                    let data = ds.read_1d::<f32>().unwrap();
+                    assert_eq!(data.len(), 5);
+                }
+            }));
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        assert_eq!(file.len() as usize, num_operations * num_threads);
+    });
+}
+
+/// Helper function to create a temporary file for testing
+fn with_tmp_file<F>(f: F)
+where
+    F: FnOnce(&File) + std::panic::UnwindSafe,
+{
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test.h5");
+    let file = File::create(&file_path).unwrap();
+
+    // Run the test
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(&file)));
+
+    // Clean up
+    drop(file);
+    drop(temp_dir);
+
+    // Propagate any test failures
+    if let Err(e) = result {
+        std::panic::resume_unwind(e);
+    }
+}

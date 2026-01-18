@@ -1,7 +1,7 @@
 use std::ptr::{self, addr_of_mut};
 use std::slice;
+use std::sync::OnceLock;
 
-use lazy_static::lazy_static;
 use lzf_sys::{lzf_compress, lzf_decompress, LZF_VERSION};
 
 use hdf5_sys::h5p::{H5Pget_chunk, H5Pget_filter_by_id2, H5Pmodify_filter};
@@ -27,18 +27,19 @@ const LZF_FILTER_INFO: &H5Z_class2_t = &H5Z_class2_t {
     filter: Some(filter_lzf),
 };
 
-lazy_static! {
-    static ref LZF_INIT: Result<(), &'static str> = {
+fn register_lzf_filter() -> Result<(), &'static str> {
+    static LZF_INIT: OnceLock<Result<(), &'static str>> = OnceLock::new();
+    *LZF_INIT.get_or_init(|| {
         let ret = unsafe { H5Zregister((LZF_FILTER_INFO as *const H5Z_class2_t).cast()) };
         if H5ErrorCode::is_err_code(ret) {
             return Err("Can't register LZF filter");
         }
         Ok(())
-    };
+    })
 }
 
 pub fn register_lzf() -> Result<(), &'static str> {
-    *LZF_INIT
+    register_lzf_filter()
 }
 
 extern "C" fn set_local_lzf(dcpl_id: hid_t, type_id: hid_t, _space_id: hid_t) -> herr_t {

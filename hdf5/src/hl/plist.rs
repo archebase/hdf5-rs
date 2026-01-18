@@ -202,7 +202,7 @@ impl PropertyList {
             let class_id = h5check(H5Pget_class(self.id()))?;
             let buf = H5Pget_class_name(class_id);
             if buf.is_null() {
-                return Err(Error::query().unwrap_or_else(|_| "invalid property class".into()));
+                return Err(H5Error::internal("invalid property class"));
             }
             let name = string_from_cstr(buf);
             h5_free_memory(buf.cast());
@@ -316,5 +316,125 @@ pub mod tests {
         let (fapl, fcpl) = make_plists();
         assert_eq!(format!("{:?}", fapl), "<HDF5 property list: file access>");
         assert_eq!(format!("{:?}", fcpl), "<HDF5 property list: file create>");
+    }
+
+    #[test]
+    pub fn test_has_property() {
+        let (fapl, fcpl) = make_plists();
+        // Test that properties can be queried
+        assert!(fapl.properties().len() > 0);
+        assert!(fcpl.properties().len() > 0);
+        // Test that non-existent properties return false
+        assert!(!fapl.has("nonexistent_property_xyz"));
+    }
+
+    #[test]
+    pub fn test_has_property_invalid() {
+        let (fapl, _) = make_plists();
+        // Properties that don't exist
+        assert!(!fapl.has("nonexistent_property"));
+        assert!(!fapl.has(""));
+    }
+
+    #[test]
+    pub fn test_properties() {
+        let (fapl, _) = make_plists();
+        let props = fapl.properties();
+        assert!(!props.is_empty());
+        assert!(props.len() > 1);
+        // Properties should not include empty strings (filtered out)
+        assert!(!props.iter().any(|p| p.is_empty()));
+    }
+
+    #[test]
+    pub fn test_is_class() {
+        let (fapl, fcpl) = make_plists();
+        assert!(fapl.is_class(PropertyListClass::FileAccess));
+        assert!(!fapl.is_class(PropertyListClass::FileCreate));
+        assert!(fcpl.is_class(PropertyListClass::FileCreate));
+        assert!(!fcpl.is_class(PropertyListClass::FileAccess));
+    }
+
+    #[test]
+    pub fn test_is_class_all_variants() {
+        let (fapl, fcpl) = make_plists();
+        // Test various class checks
+        assert!(fapl.is_class(PropertyListClass::FileAccess));
+        assert!(fcpl.is_class(PropertyListClass::FileCreate));
+        // These should be false for file access/create plists
+        assert!(!fapl.is_class(PropertyListClass::DatasetAccess));
+        assert!(!fapl.is_class(PropertyListClass::DatasetCreate));
+        assert!(!fapl.is_class(PropertyListClass::GroupAccess));
+        // Note: FileCreate may be considered GroupCreate in some HDF5 versions
+    }
+
+    #[test]
+    pub fn test_property_list_class_display() {
+        assert_eq!(format!("{}", PropertyListClass::AttributeCreate), "attribute create");
+        assert_eq!(format!("{}", PropertyListClass::DatasetAccess), "dataset access");
+        assert_eq!(format!("{}", PropertyListClass::DatasetCreate), "dataset create");
+        assert_eq!(format!("{}", PropertyListClass::DataTransfer), "data transfer");
+        assert_eq!(format!("{}", PropertyListClass::DatatypeAccess), "datatype access");
+        assert_eq!(format!("{}", PropertyListClass::DatatypeCreate), "datatype create");
+        assert_eq!(format!("{}", PropertyListClass::FileAccess), "file access");
+        assert_eq!(format!("{}", PropertyListClass::FileCreate), "file create");
+        assert_eq!(format!("{}", PropertyListClass::FileMount), "file mount");
+        assert_eq!(format!("{}", PropertyListClass::GroupAccess), "group access");
+        assert_eq!(format!("{}", PropertyListClass::GroupCreate), "group create");
+        assert_eq!(format!("{}", PropertyListClass::LinkAccess), "link access");
+        assert_eq!(format!("{}", PropertyListClass::LinkCreate), "link create");
+        assert_eq!(format!("{}", PropertyListClass::ObjectCopy), "object copy");
+        assert_eq!(format!("{}", PropertyListClass::ObjectCreate), "object create");
+        assert_eq!(format!("{}", PropertyListClass::StringCreate), "string create");
+    }
+
+    #[test]
+    pub fn test_property_list_class_from_str_valid() {
+        assert_eq!(
+            "attribute create".parse::<PropertyListClass>().unwrap(),
+            PropertyListClass::AttributeCreate
+        );
+        assert_eq!(
+            "dataset access".parse::<PropertyListClass>().unwrap(),
+            PropertyListClass::DatasetAccess
+        );
+        assert_eq!(
+            "dataset create".parse::<PropertyListClass>().unwrap(),
+            PropertyListClass::DatasetCreate
+        );
+        assert_eq!(
+            "file access".parse::<PropertyListClass>().unwrap(),
+            PropertyListClass::FileAccess
+        );
+        assert_eq!(
+            "file create".parse::<PropertyListClass>().unwrap(),
+            PropertyListClass::FileCreate
+        );
+    }
+
+    #[test]
+    pub fn test_property_list_class_from_str_invalid() {
+        assert!("invalid class".parse::<PropertyListClass>().is_err());
+        assert!("".parse::<PropertyListClass>().is_err());
+        assert!("dataset".parse::<PropertyListClass>().is_err());
+        assert!("file".parse::<PropertyListClass>().is_err());
+    }
+
+    #[test]
+    pub fn test_property_list_class_into_string() {
+        let class = PropertyListClass::DatasetAccess;
+        let s: String = class.into();
+        assert_eq!(s, "dataset access");
+    }
+
+    #[test]
+    pub fn test_copy_preserves_properties() {
+        let (fapl, _) = make_plists();
+        let original_len = fapl.len();
+        let fapl_c = fapl.copy();
+        // Copy should have same number of properties
+        assert_eq!(fapl_c.len(), original_len);
+        // Same class
+        assert_eq!(fapl.class().unwrap(), fapl_c.class().unwrap());
     }
 }

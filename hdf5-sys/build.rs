@@ -29,7 +29,7 @@ impl Version {
     }
 
     pub fn parse(s: &str) -> Option<Self> {
-        let re = Regex::new(r"^(1)\.(8|10|12|14)\.(\d\d?)(_\d+)?((-|.)(patch)?\d+)?$").ok()?;
+        let re = Regex::new(r"^(1)\.(8|10|12|14)\.(\d\d?)(_|.\d+)?((-|.)(patch)?\d+)?$").ok()?;
         let captures = re.captures(s)?;
         Some(Self {
             major: captures.get(1).and_then(|c| c.as_str().parse::<u8>().ok())?,
@@ -80,6 +80,7 @@ fn is_msvc() -> bool {
     std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc"
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 struct RuntimeError(String);
 
@@ -310,6 +311,7 @@ mod unix {
         }
         for (inc_dir, lib_dir) in &[
             ("/usr/include/hdf5/serial", "/usr/lib/x86_64-linux-gnu/hdf5/serial"),
+            ("/usr/include/hdf5", "/usr/lib/x86_64-linux-gnu/hdf5"),
             ("/usr/include", "/usr/lib/x86_64-linux-gnu"),
             ("/usr/include", "/usr/lib64"),
         ] {
@@ -659,7 +661,7 @@ impl Config {
         let mut vs: Vec<_> = (5..=21).map(|v| Version::new(1, 8, v)).collect(); // 1.8.[5-23]
         vs.extend((0..=8).map(|v| Version::new(1, 10, v))); // 1.10.[0-10]
         vs.extend((0..=2).map(|v| Version::new(1, 12, v))); // 1.12.[0-2]
-        vs.extend((0..=1).map(|v| Version::new(1, 14, v))); // 1.14.[0-1]
+        vs.extend((0..=2).map(|v| Version::new(1, 14, v))); // 1.14.[0-2]
         for v in vs.into_iter().filter(|&v| version >= v) {
             println!("cargo:rustc-cfg=feature=\"{}.{}.{}\"", v.major, v.minor, v.micro);
             println!("cargo:version_{}_{}_{}=1", v.major, v.minor, v.micro);
@@ -683,6 +685,10 @@ impl Config {
         if self.header.have_filter_deflate {
             println!("cargo:rustc-cfg=feature=\"have-filter-deflate\"");
             println!("cargo:have_filter_deflate=1");
+        }
+
+        if cfg!(windows) && version >= Version::new(1, 14, 0) {
+            println!("cargo:rustc-link-lib=shlwapi");
         }
     }
 
@@ -722,8 +728,6 @@ fn get_build_and_emit() {
     if feature_enabled("ZLIB") {
         let zlib_lib = env::var("DEP_HDF5SRC_ZLIB").unwrap();
         println!("cargo:zlib={}", &zlib_lib);
-        let zlib_lib_header = env::var("DEP_HDF5SRC_ZLIB").unwrap();
-        println!("cargo:zlib={}", &zlib_lib_header);
         println!("cargo:rustc-link-lib=static={}", &zlib_lib);
     }
 
@@ -744,6 +748,7 @@ fn get_build_and_emit() {
     println!("cargo:rustc-link-lib=static={}", &hdf5_lib);
 
     let header = Header::parse(&hdf5_incdir);
-    let config = Config { header, inc_dir: "".into(), link_paths: Vec::new() };
+    let inc_dir = PathBuf::from(&hdf5_incdir);
+    let config = Config { header, inc_dir, link_paths: Vec::new() };
     config.emit_cfg_flags();
 }

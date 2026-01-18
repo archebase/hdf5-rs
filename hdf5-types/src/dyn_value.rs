@@ -108,7 +108,7 @@ impl From<DynInteger> for DynScalar {
     }
 }
 
-impl From<DynInteger> for DynValue<'_> {
+impl<'a> From<DynInteger> for DynValue<'a> {
     fn from(value: DynInteger) -> Self {
         DynScalar::Integer(value).into()
     }
@@ -167,7 +167,7 @@ impl From<DynFloat> for DynScalar {
     }
 }
 
-impl From<DynFloat> for DynValue<'_> {
+impl<'a> From<DynFloat> for DynValue<'a> {
     fn from(value: DynFloat) -> Self {
         DynScalar::Float(value).into()
     }
@@ -234,21 +234,21 @@ impl<'a> DynEnum<'a> {
     }
 }
 
-unsafe impl DynClone for DynEnum<'_> {
+unsafe impl<'a> DynClone for DynEnum<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         self.value.dyn_clone(out);
     }
 }
 
-impl PartialEq for DynEnum<'_> {
+impl<'a> PartialEq for DynEnum<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }
 }
 
-impl Eq for DynEnum<'_> {}
+impl<'a> Eq for DynEnum<'a> {}
 
-impl Debug for DynEnum<'_> {
+impl<'a> Debug for DynEnum<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.name() {
             Some(name) => f.write_str(name),
@@ -257,7 +257,7 @@ impl Debug for DynEnum<'_> {
     }
 }
 
-impl Display for DynEnum<'_> {
+impl<'a> Display for DynEnum<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -279,7 +279,7 @@ impl<'a> DynCompound<'a> {
         Self { tp, buf }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&str, DynValue)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&str, DynValue<'_>)> {
         self.tp.fields.iter().map(move |field| {
             (
                 field.name.as_ref(),
@@ -289,7 +289,7 @@ impl<'a> DynCompound<'a> {
     }
 }
 
-unsafe impl DynDrop for DynCompound<'_> {
+unsafe impl<'a> DynDrop for DynCompound<'a> {
     fn dyn_drop(&mut self) {
         for (_, mut value) in self.iter() {
             value.dyn_drop();
@@ -297,7 +297,7 @@ unsafe impl DynDrop for DynCompound<'_> {
     }
 }
 
-unsafe impl DynClone for DynCompound<'_> {
+unsafe impl<'a> DynClone for DynCompound<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         debug_assert_eq!(out.len(), self.tp.size);
         for (i, (_, mut value)) in self.iter().enumerate() {
@@ -307,7 +307,7 @@ unsafe impl DynClone for DynCompound<'_> {
     }
 }
 
-impl PartialEq for DynCompound<'_> {
+impl<'a> PartialEq for DynCompound<'a> {
     fn eq(&self, other: &Self) -> bool {
         let (mut it1, mut it2) = (self.iter(), other.iter());
         loop {
@@ -326,13 +326,13 @@ impl PartialEq for DynCompound<'_> {
 
 struct RawStr<'a>(&'a str);
 
-impl Debug for RawStr<'_> {
+impl<'a> Debug for RawStr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.0)
     }
 }
 
-impl Debug for DynCompound<'_> {
+impl<'a> Debug for DynCompound<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut b = f.debug_map();
         for (name, value) in self.iter() {
@@ -342,7 +342,7 @@ impl Debug for DynCompound<'_> {
     }
 }
 
-impl Display for DynCompound<'_> {
+impl<'a> Display for DynCompound<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -379,7 +379,7 @@ impl<'a> DynArray<'a> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = DynValue> {
+    pub fn iter(&self) -> impl Iterator<Item = DynValue<'_>> {
         let ptr = self.get_ptr();
         let len = self.get_len();
         let size = self.tp.size();
@@ -392,7 +392,7 @@ impl<'a> DynArray<'a> {
     }
 }
 
-unsafe impl DynDrop for DynArray<'_> {
+unsafe impl<'a> DynDrop for DynArray<'a> {
     fn dyn_drop(&mut self) {
         for mut value in self.iter() {
             value.dyn_drop();
@@ -405,7 +405,7 @@ unsafe impl DynDrop for DynArray<'_> {
     }
 }
 
-unsafe impl DynClone for DynArray<'_> {
+unsafe impl<'a> DynClone for DynArray<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         let (len, ptr, size) = (self.get_len(), self.get_ptr(), self.tp.size());
         let out = if self.len.is_none() {
@@ -431,7 +431,7 @@ unsafe impl DynClone for DynArray<'_> {
     }
 }
 
-impl PartialEq for DynArray<'_> {
+impl<'a> PartialEq for DynArray<'a> {
     fn eq(&self, other: &Self) -> bool {
         let (mut it1, mut it2) = (self.iter(), other.iter());
         loop {
@@ -448,7 +448,7 @@ impl PartialEq for DynArray<'_> {
     }
 }
 
-impl Debug for DynArray<'_> {
+impl<'a> Debug for DynArray<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut b = f.debug_list();
         for value in self.iter() {
@@ -458,7 +458,7 @@ impl Debug for DynArray<'_> {
     }
 }
 
-impl Display for DynArray<'_> {
+impl<'a> Display for DynArray<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -489,29 +489,29 @@ impl<'a> DynFixedString<'a> {
     }
 }
 
-unsafe impl DynClone for DynFixedString<'_> {
+unsafe impl<'a> DynClone for DynFixedString<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         debug_assert_eq!(self.buf.len(), out.len());
         out.clone_from_slice(self.buf);
     }
 }
 
-impl PartialEq for DynFixedString<'_> {
+impl<'a> PartialEq for DynFixedString<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.unicode == other.unicode && self.get_buf() == other.get_buf()
     }
 }
 
-impl Eq for DynFixedString<'_> {}
+impl<'a> Eq for DynFixedString<'a> {}
 
-impl Debug for DynFixedString<'_> {
+impl<'a> Debug for DynFixedString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = unsafe { std::str::from_utf8_unchecked(self.get_buf()) };
         Debug::fmt(&s, f)
     }
 }
 
-impl Display for DynFixedString<'_> {
+impl<'a> Display for DynFixedString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -566,7 +566,7 @@ impl<'a> DynVarLenString<'a> {
     }
 }
 
-unsafe impl DynDrop for DynVarLenString<'_> {
+unsafe impl<'a> DynDrop for DynVarLenString<'a> {
     fn dyn_drop(&mut self) {
         if !self.get_ptr().is_null() {
             unsafe {
@@ -576,7 +576,7 @@ unsafe impl DynDrop for DynVarLenString<'_> {
     }
 }
 
-unsafe impl DynClone for DynVarLenString<'_> {
+unsafe impl<'a> DynClone for DynVarLenString<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         debug_assert_eq!(out.len(), mem::size_of::<usize>());
         if !self.get_ptr().is_null() {
@@ -593,7 +593,7 @@ unsafe impl DynClone for DynVarLenString<'_> {
     }
 }
 
-impl PartialEq for DynVarLenString<'_> {
+impl<'a> PartialEq for DynVarLenString<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (self.unicode, other.unicode) {
             (true, true) => self.as_unicode() == other.as_unicode(),
@@ -603,9 +603,9 @@ impl PartialEq for DynVarLenString<'_> {
     }
 }
 
-impl Eq for DynVarLenString<'_> {}
+impl<'a> Eq for DynVarLenString<'a> {}
 
-impl Debug for DynVarLenString<'_> {
+impl<'a> Debug for DynVarLenString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.unicode {
             Debug::fmt(&self.as_unicode(), f)
@@ -615,7 +615,7 @@ impl Debug for DynVarLenString<'_> {
     }
 }
 
-impl Display for DynVarLenString<'_> {
+impl<'a> Display for DynVarLenString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -639,7 +639,7 @@ pub enum DynString<'a> {
     VarLen(DynVarLenString<'a>),
 }
 
-unsafe impl DynDrop for DynString<'_> {
+unsafe impl<'a> DynDrop for DynString<'a> {
     fn dyn_drop(&mut self) {
         if let DynString::VarLen(string) = self {
             string.dyn_drop();
@@ -647,7 +647,7 @@ unsafe impl DynDrop for DynString<'_> {
     }
 }
 
-unsafe impl DynClone for DynString<'_> {
+unsafe impl<'a> DynClone for DynString<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         match self {
             Self::Fixed(x) => x.dyn_clone(out),
@@ -656,7 +656,7 @@ unsafe impl DynClone for DynString<'_> {
     }
 }
 
-impl Debug for DynString<'_> {
+impl<'a> Debug for DynString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Fixed(x) => Debug::fmt(&x, f),
@@ -665,7 +665,7 @@ impl Debug for DynString<'_> {
     }
 }
 
-impl Display for DynString<'_> {
+impl<'a> Display for DynString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -707,7 +707,7 @@ impl<'a> DynValue<'a> {
     }
 }
 
-unsafe impl DynDrop for DynValue<'_> {
+unsafe impl<'a> DynDrop for DynValue<'a> {
     fn dyn_drop(&mut self) {
         match self {
             Self::Compound(x) => x.dyn_drop(),
@@ -718,7 +718,7 @@ unsafe impl DynDrop for DynValue<'_> {
     }
 }
 
-unsafe impl DynClone for DynValue<'_> {
+unsafe impl<'a> DynClone for DynValue<'a> {
     fn dyn_clone(&mut self, out: &mut [u8]) {
         match self {
             Self::Scalar(x) => x.dyn_clone(out),
@@ -730,7 +730,7 @@ unsafe impl DynClone for DynValue<'_> {
     }
 }
 
-impl Debug for DynValue<'_> {
+impl<'a> Debug for DynValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Scalar(x) => Debug::fmt(&x, f),
@@ -742,7 +742,7 @@ impl Debug for DynValue<'_> {
     }
 }
 
-impl Display for DynValue<'_> {
+impl<'a> Display for DynValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Debug::fmt(self, f)
     }
@@ -762,7 +762,7 @@ impl OwnedDynValue {
         Self { tp: T::type_descriptor(), buf: buf.to_owned().into_boxed_slice() }
     }
 
-    pub fn get(&self) -> DynValue {
+    pub fn get(&self) -> DynValue<'_> {
         DynValue::new(&self.tp, &self.buf)
     }
 

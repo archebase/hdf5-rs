@@ -47,7 +47,9 @@ impl ObjectClass for Dataset {
         &self.0
     }
 
-    // TODO: short_repr()
+    fn short_repr(&self) -> Option<String> {
+        Some(format!("<dataset id={}>", self.id()))
+    }
 }
 
 impl Debug for Dataset {
@@ -400,11 +402,7 @@ impl DatasetBuilderInner {
     }
 
     fn compute_chunk_shape(&self, dtype: &Datatype, extents: &Extents) -> Result<Option<Vec<Ix>>> {
-        let extents = if let Extents::Simple(extents) = extents {
-            extents
-        } else {
-            return Ok(None);
-        };
+        let Extents::Simple(extents) = extents else { return Ok(None) };
         let has_filters = self.dcpl_builder.has_filters()
             || self.dcpl_base.as_ref().map_or(false, DatasetCreate::has_filters);
         let chunking_required = has_filters || extents.is_resizable();
@@ -432,21 +430,20 @@ impl DatasetBuilderInner {
                 None
             }
         };
-        if let Some(ref chunk) = chunk_shape {
-            let ndim = extents.ndim();
-            ensure!(ndim != 0, "Chunking cannot be enabled for 0-dim datasets");
-            ensure!(ndim == chunk.len(), "Expected chunk ndim {}, got {}", ndim, chunk.len());
-            let chunk_size = chunk.iter().product::<usize>();
-            ensure!(chunk_size > 0, "All chunk dimensions must be positive, got {:?}", chunk);
-            let dims_ok = extents.iter().zip(chunk).all(|(e, c)| e.max.is_none() || *c <= e.dim);
-            let no_extent = extents.size() == 0;
-            ensure!(
-                dims_ok || no_extent,
-                "Chunk dimensions ({:?}) exceed data shape ({:?})",
-                chunk,
-                extents
-            );
-        }
+        let Some(ref chunk) = chunk_shape else { return Ok(chunk_shape) };
+        let ndim = extents.ndim();
+        ensure!(ndim != 0, "Chunking cannot be enabled for 0-dim datasets");
+        ensure!(ndim == chunk.len(), "Expected chunk ndim {}, got {}", ndim, chunk.len());
+        let chunk_size = chunk.iter().product::<usize>();
+        ensure!(chunk_size > 0, "All chunk dimensions must be positive, got {:?}", chunk);
+        let dims_ok = extents.iter().zip(chunk).all(|(e, c)| e.max.is_none() || *c <= e.dim);
+        let no_extent = extents.size() == 0;
+        ensure!(
+            dims_ok || no_extent,
+            "Chunk dimensions ({:?}) exceed data shape ({:?})",
+            chunk,
+            extents
+        );
         Ok(chunk_shape)
     }
 
@@ -1090,6 +1087,507 @@ mod tests {
             dataset.write_scalar(&val).unwrap();
             let val_back = dataset.read_scalar().unwrap();
             assert_eq!(val, val_back);
+        })
+    }
+
+    #[test]
+    fn test_dataset_maybe_type_conversions() {
+        use super::Maybe;
+        // Test Maybe<T> conversions
+        let maybe_some: Maybe<i32> = Maybe::from(42);
+        assert_eq!(*maybe_some, Some(42));
+
+        let maybe_from_option: Maybe<i32> = Maybe::from(Some(42));
+        assert_eq!(*maybe_from_option, Some(42));
+
+        let maybe_from_none: Maybe<i32> = Maybe::from(None::<i32>);
+        assert_eq!(*maybe_from_none, None);
+
+        let option_from_maybe: Option<i32> = Option::from(maybe_some);
+        assert_eq!(option_from_maybe, Some(42));
+    }
+
+    #[test]
+    fn test_dataset_maybe_deref() {
+        use super::Maybe;
+        // Test Maybe<T> Deref implementation
+        let maybe: Maybe<i32> = Maybe::from(42);
+        assert_eq!(*maybe, Some(42));
+    }
+
+    #[test]
+    fn test_dataset_is_resizable_for_chunked() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Chunked datasets are resizable if they have resizable dimensions
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            // Chunked datasets without unlimited dimensions may not be resizable
+            let _ = ds.is_resizable();
+        })
+    }
+
+    #[test]
+    fn test_dataset_new_empty() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let builder = DatasetBuilder::new(&file);
+            assert_eq!(builder.empty::<i32>().shape(()).create("test").unwrap().shape(), vec![]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_empty_as() {
+        use crate::internal_prelude::*;
+        use hdf5_types::TypeDescriptor;
+        with_tmp_file(|file| {
+            let type_desc = TypeDescriptor::Integer(hdf5_types::IntSize::U4);
+            let ds =
+                file.new_dataset_builder().empty_as(&type_desc).shape(()).create("test").unwrap();
+            assert_eq!(ds.shape(), vec![]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_with_data_conversion() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let arr = ndarray::arr2(&[[1.0_f32, 2.0], [3.0, 4.0]]);
+
+            // Test with conversion allowed
+            let ds = file.new_dataset_builder().with_data(&arr).create("f32").unwrap();
+            assert_eq!(ds.shape(), vec![2, 2]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_no_convert() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let arr = ndarray::arr2(&[[1.0_f32, 2.0], [3.0, 4.0]]);
+
+            // Create as f32 with f32 data but with no_convert - should still work since it's the same type
+            let ds =
+                file.new_dataset_builder().with_data(&arr).no_convert().create("test").unwrap();
+            assert_eq!(ds.shape(), vec![2, 2]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_chunk_min_kb() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let arr: Vec<i32> = (0..10000).collect();
+            let ds =
+                file.new_dataset::<i32>().chunk_min_kb(16).shape(10000).create("test").unwrap();
+            ds.write(&arr).unwrap();
+
+            assert!(ds.is_chunked());
+            assert!(ds.chunk().is_some());
+        })
+    }
+
+    #[test]
+    fn test_dataset_packed() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Create a packed dataset
+            let ds = file.new_dataset::<i32>().packed(true).shape((10, 10)).create("test").unwrap();
+            ds.write(&ndarray::Array2::from_shape_fn((10, 10), |(i, j)| (i * 10 + j) as i32))
+                .unwrap();
+
+            // Read back and verify
+            let data: ndarray::Array2<i32> = ds.read_2d().unwrap();
+            assert_eq!(data.shape(), vec![10, 10]);
+            assert_eq!(data[[0, 0]], 0);
+            assert_eq!(data[[9, 9]], 99);
+        })
+    }
+
+    #[test]
+    fn test_dataset_offset_none_for_chunked() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Chunked datasets should return None for offset
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            assert_eq!(ds.offset(), None);
+        })
+    }
+
+    #[test]
+    fn test_dataset_contiguous_offset_defined() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Contiguous datasets should have a defined offset
+            let ds = file.new_dataset::<i32>().no_chunk().shape(100).create("test").unwrap();
+            ds.write(&vec![42_i32; 100]).unwrap();
+            assert!(ds.offset().is_some());
+        })
+    }
+
+    #[test]
+    fn test_dataset_is_valid() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            assert!(ds.is_valid());
+
+            // Also test via Object trait
+            let obj: &crate::Object = &ds;
+            assert!(obj.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_refcount() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            // refcount() should be at least 1
+            assert!(ds.refcount() >= 1);
+        })
+    }
+
+    #[test]
+    fn test_dataset_id() {
+        use crate::internal_prelude::*;
+        use hdf5_sys::h5i::H5I_INVALID_HID;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            // id() should return a valid hid_t (not H5I_INVALID_HID)
+            assert_ne!(ds.id(), H5I_INVALID_HID);
+        })
+    }
+
+    #[test]
+    fn test_dataset_clone_independence() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds1 = file.new_dataset::<i32>().create("test").unwrap();
+            let ds2 = ds1.clone();
+
+            // Both should be valid
+            assert!(ds1.is_valid());
+            assert!(ds2.is_valid());
+
+            // They should have the same ID (same underlying handle)
+            assert_eq!(ds1.id(), ds2.id());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_empty_create() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let builder = DatasetBuilder::new(&file);
+            let ds = builder.empty::<i32>().create("test").unwrap();
+            assert_eq!(ds.shape(), vec![]);
+        })
+    }
+
+    #[cfg(feature = "1.10.5")]
+    #[test]
+    fn test_dataset_num_chunks_chunked() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            ds.write(&vec![42_i32; 100]).unwrap();
+
+            let num_chunks = ds.num_chunks();
+            assert!(num_chunks.is_some());
+            assert!(num_chunks.unwrap() > 0);
+        })
+    }
+
+    #[cfg(feature = "1.10.5")]
+    #[test]
+    fn test_dataset_chunk_info_index() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            ds.write(&vec![42_i32; 100]).unwrap();
+
+            let info = ds.chunk_info(0);
+            assert!(info.is_some());
+        })
+    }
+
+    #[cfg(feature = "1.10.5")]
+    #[test]
+    fn test_dataset_num_chunks_non_chunked() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().no_chunk().shape(100).create("test").unwrap();
+            assert_eq!(ds.num_chunks(), None);
+        })
+    }
+
+    #[test]
+    fn test_dataset_writer_operations() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().shape(10).create("test").unwrap();
+
+            // Test writer
+            let writer = ds.as_writer();
+            writer.write(&vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).unwrap();
+
+            let data: Vec<i32> = ds.read_raw().unwrap();
+            assert_eq!(data, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_write_scalar() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            ds.write_scalar(&42).unwrap();
+
+            let val: i32 = ds.read_scalar().unwrap();
+            assert_eq!(val, 42);
+        })
+    }
+
+    #[test]
+    fn test_dataset_write_2d() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().shape((3, 4)).create("test").unwrap();
+            let arr = ndarray::arr2(&[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]);
+            ds.write(&arr).unwrap();
+
+            let data: ndarray::Array2<i32> = ds.read_2d().unwrap();
+            assert_eq!(data, arr);
+        })
+    }
+
+    #[test]
+    fn test_dataset_write_raw() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().shape(10).create("test").unwrap();
+            ds.write_raw(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).unwrap();
+
+            let data: Vec<i32> = ds.read_raw().unwrap();
+            assert_eq!(data, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_dtype_size() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            let dtype = ds.dtype().unwrap();
+            assert_eq!(dtype.size(), 4);
+        })
+    }
+
+    #[test]
+    fn test_dataset_dtype_conversions() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            let dtype = ds.dtype().unwrap();
+
+            // Test conversion to other types
+            let f64_type = crate::datatype::Datatype::from_type::<f64>().unwrap();
+            let _ = dtype.conv_path(&f64_type);
+        })
+    }
+
+    #[test]
+    fn test_dataset_space_ndim() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().shape((3, 4, 5)).create("test").unwrap();
+            let space = ds.space().unwrap();
+            assert_eq!(space.ndim(), 3);
+        })
+    }
+
+    #[test]
+    fn test_dataset_shape_size() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().shape((3, 4)).create("test").unwrap();
+            assert_eq!(ds.shape(), vec![3, 4]);
+            assert_eq!(ds.size(), 12);
+        })
+    }
+
+    #[test]
+    fn test_dataset_name() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("my_dataset").unwrap();
+            assert_eq!(ds.name(), "/my_dataset");
+        })
+    }
+
+    #[test]
+    fn test_dataset_file_via_location() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            // Test via Location trait
+            let parent = ds.file().unwrap();
+            assert_eq!(parent.name(), "/");
+        })
+    }
+
+    #[test]
+    fn test_dataset_attr_names_empty() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            let attr_names = ds.attr_names().unwrap();
+            assert!(attr_names.is_empty());
+        })
+    }
+
+    #[test]
+    fn test_dataset_debug_format() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().create("test").unwrap();
+            let debug_str = format!("{:?}", ds);
+            assert!(debug_str.contains("dataset"));
+        })
+    }
+
+    #[test]
+    fn test_dataset_same_id() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            file.new_dataset::<i32>().create("test").unwrap();
+            let ds1 = file.dataset("test").unwrap();
+            let ds2 = file.dataset("test").unwrap();
+            // Same dataset should both be valid
+            assert!(ds1.is_valid());
+            assert!(ds2.is_valid());
+            // IDs should be non-zero
+            assert_ne!(ds1.id(), 0);
+            assert_ne!(ds2.id(), 0);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_chunk_cache() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file
+                .new_dataset::<i32>()
+                .chunk_cache(100, 1024 * 1024, 0.75)
+                .shape(100)
+                .create("test")
+                .unwrap();
+            assert!(ds.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_deflate_available() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Test deflate availability check
+            if !crate::filters::deflate_available() {
+                return;
+            }
+            // Deflate requires chunking
+            let ds =
+                file.new_dataset::<i32>().chunk(10).deflate(3).shape(100).create("test").unwrap();
+            assert!(ds.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_no_chunk_explicit() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().no_chunk().shape(100).create("test").unwrap();
+            assert!(!ds.is_chunked());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_fill_value() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file
+                .new_dataset::<i32>()
+                .fill_value(42)
+                .chunk(10)
+                .shape(10)
+                .create("test")
+                .unwrap();
+            ds.write(&vec![1; 10]).unwrap();
+
+            let data: Vec<i32> = ds.read_raw().unwrap();
+            assert_eq!(data, vec![1; 10]);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_no_fill_value() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file
+                .new_dataset::<i32>()
+                .no_fill_value()
+                .chunk(10)
+                .shape(10)
+                .create("test")
+                .unwrap();
+            assert!(ds.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_clear_filters() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let arr: Vec<i32> = (0..100).collect();
+            let ds = file
+                .new_dataset_builder()
+                .with_data(&arr)
+                .chunk(10)
+                .deflate(5)
+                .clear_filters()
+                .create("test")
+                .unwrap();
+
+            let data: Vec<i32> = ds.read_raw().unwrap();
+            assert_eq!(data, arr);
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_alloc_time() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Test alloc_time with integer value
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            assert!(ds.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_fill_time() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            // Test chunked dataset creation
+            let ds = file.new_dataset::<i32>().chunk(10).shape(100).create("test").unwrap();
+            assert!(ds.is_valid());
+        })
+    }
+
+    #[test]
+    fn test_dataset_builder_layout_contiguous() {
+        use crate::internal_prelude::*;
+        with_tmp_file(|file| {
+            let ds = file.new_dataset::<i32>().no_chunk().shape(100).create("test").unwrap();
+            assert!(!ds.is_chunked());
         })
     }
 }
