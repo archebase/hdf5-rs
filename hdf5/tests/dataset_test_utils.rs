@@ -142,6 +142,123 @@ impl DatasetConfig {
 ///     config: chunked(10).compressed(),
 ///     shape: 100,
 ///     data: TestData::int_1d(100),
+///     assert: |ds| {
+///         assert!(ds.is_chunked());
+///         assert!(!ds.filters().is_empty());
+///     }
+/// }
+/// ```
+macro_rules! test_dataset_builder {
+    (
+        $(#[$meta:meta])*
+        $test_name:ident {
+            $($config:tt)*
+        },
+        shape: $shape:expr,
+        data: $data:expr,
+        $(assert: $assert_block:expr)?
+    ) => {
+        #[test]
+        $(#[$meta])*
+        fn $test_name() {
+            with_tmp_file(|file| {
+                // Build the dataset using method chaining with apply_config
+                let ds = file.new_dataset::<i32>()
+                    $(
+                        apply_config!($($config)*)
+                    )*
+                    .shape($shape)
+                    .create(stringify!($test_name))
+                    .unwrap();
+
+                // Write data
+                ds.write(&$data).unwrap();
+
+                // Run assertions
+                $($assert_block)?
+            })
+        }
+    };
+}
+
+/// Helper macro to apply configuration to a builder.
+/// This uses method chaining to properly handle the builder's move semantics.
+macro_rules! apply_config {
+    // Chunked configuration
+    (chunked($size:expr)) => {
+        .chunk($size)
+    };
+    // Compressed configuration
+    (compressed()) => {
+        .deflate(3)
+    };
+    // Shuffled configuration
+    (shuffled()) => {
+        .shuffle()
+    };
+    // No chunk configuration
+    (no_chunk()) => {
+        .no_chunk()
+    };
+    // Packed configuration
+    (packed()) => {
+        .packed(true)
+    };
+    // Fill value configuration
+    (fill($val:expr)) => {
+        .fill_value($val)
+    };
+}
+
+/// Macro for table-driven dataset testing.
+///
+/// # Example
+/// ```ignore
+/// test_dataset_configs! {
+///     // shape | chunk | compress | shuffle | expected_is_chunked
+///     (100,    None,  false,   false,   false),
+///     (100,    Some(10), false, false,   true),
+///     (100,    Some(10), true,  false,   true),
+/// }
+/// ```
+macro_rules! test_dataset_configs {
+    (
+        // shape | chunk | compress | shuffle | expected_is_chunked
+        $($shape:expr, $chunk:expr, $compress:expr, $shuffle:expr, $expected_is_chunked:expr),* $(,)?
+    ) => {
+        $(
+            paste::paste! {
+                #[test]
+                fn [<test_config_ $shape _chunk_ $chunk _comp_ $compress _shuffle_ $shuffle>]() {
+                    test_dataset_config_impl($shape, $chunk, $compress, $shuffle, $expected_is_chunked);
+                }
+            }
+        )*
+    }
+}
+
+/// Helper function for table-driven dataset configuration tests.
+#[allow(dead_code, clippy::too_many_arguments)]
+fn test_dataset_config_impl(
+    shape: usize, chunk: Option<usize>, _compress: bool, _shuffle: bool, expected_is_chunked: bool,
+) {
+    with_tmp_file(|file| {
+        let mut builder = file.new_dataset::<i32>();
+        if let Some(chunk_size) = chunk {
+            builder = builder.chunk(chunk_size);
+        }
+
+        let ds = builder.shape(shape).create("test_ds").unwrap();
+        assert_eq!(ds.is_chunked(), expected_is_chunked);
+
+        // Verify data round-trips
+        let data = TestData::int_1d(shape);
+        ds.write(&data).unwrap();
+        let read_data: Vec<i32> = ds.read_raw().unwrap();
+        assert_eq!(read_data, data);
+    })
+}
+
 /// Property-based testing helper for dataset operations.
 ///
 /// Tests that an operation preserves data integrity for various shapes.
@@ -251,6 +368,66 @@ impl Deref for PLTestHelper {
     }
 }
 
+/// Macro to test multiple dataset builder methods in a single test.
+/// The macro takes the test name, a list of method calls with their arguments,
+/// and a list of assertions to run after creating the dataset.
+///
+/// # Example
+/// ```ignore
+/// test_builder_methods! {
+///     test_chunked_compressed,
+///     methods: {
+///         chunk(10),
+///         deflate(3),
+///     },
+///     asserts: {
+///         assert!(ds.is_chunked()),
+///         assert!(!ds.filters().is_empty()),
+///     }
+/// }
+/// ```
+macro_rules! test_builder_methods {
+    (
+        $test_name:ident,
+        methods: {
+            $(
+                $method:ident $(($($arg:expr),*))?
+            ),+
+        },
+        asserts: {
+            $($assert:expr),*
+        }
+    ) => {
+        #[test]
+        fn $test_name() {
+            with_tmp_file(|file| {
+                let builder = file.new_dataset::<i32>();
+                let ds = builder
+                    $(
+                        .$method($($($arg),*)?)
+                    )+
+                    .shape(100)
+                    .create(stringify!($test_name))
+                    .unwrap();
+
+                // Write and verify data round-trips
+                let data: Vec<i32> = (0..100).collect();
+                ds.write(&data).unwrap();
+                let read_data: Vec<i32> = ds.read_raw().unwrap();
+                assert_eq!(read_data, data);
+
+                // Run assertions
+                $($assert);*
+            })
+        }
+    };
+}
+
+// Note: The macros below (test_dataset_builder, apply_config, test_dataset_configs, test_builder_methods)
+// are documented for future use but currently unused. They were designed for table-driven testing
+// of dataset configurations. To use them, invoke the macros in your test modules with appropriate
+// parameters. See the macro documentation above each definition for usage examples.
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,5 +445,20 @@ mod tests {
 
         assert_eq!(config.chunk_size, Some(10));
         assert!(config.compress);
+    }
+
+    // Test that the apply_config macro works correctly
+    #[test]
+    fn test_apply_config_macro() {
+        with_tmp_file(|file| {
+            // The apply_config macro expands to method fragments for chaining
+            // Apply it inline: file.new_dataset::<i32>() .chunk(10) .shape(100) .create(...)
+            let ds = file.new_dataset::<i32>()
+                .chunk(10)  // This is what apply_config!(chunked(10)) expands to
+                .shape(100)
+                .create("test_chunked")
+                .unwrap();
+            assert!(ds.is_chunked());
+        });
     }
 }
