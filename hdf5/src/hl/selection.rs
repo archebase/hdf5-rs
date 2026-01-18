@@ -1,9 +1,6 @@
-use std::borrow::Cow;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Display};
-use std::mem;
 use std::ops::{Deref, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
-use std::slice;
 
 use ndarray::{self, s, Array1, Array2, ArrayView1, ArrayView2};
 
@@ -23,24 +20,17 @@ unsafe fn get_points_selection(space_id: hid_t) -> Result<Array2<Ix>> {
     let ndim = h5check(H5Sget_simple_extent_ndims(space_id))? as usize;
     let mut coords = vec![0; npoints * ndim];
     h5check(H5Sget_select_elem_pointlist(space_id, 0, npoints as _, coords.as_mut_ptr()))?;
-    let coords = if mem::size_of::<hsize_t>() == mem::size_of::<Ix>() {
-        #[allow(clippy::transmute_undefined_repr)]
-        mem::transmute(coords)
-    } else {
-        coords.iter().map(|&x| x as _).collect()
-    };
+    // Convert safely from hsize_t to Ix without transmute
+    // We use a safe conversion to avoid potential issues with signed/unsigned mismatches
+    let coords: Vec<Ix> = coords.iter().map(|&x| x as _).collect();
     Ok(Array2::from_shape_vec_unchecked((npoints, ndim), coords))
 }
 
 unsafe fn set_points_selection(space_id: hid_t, coords: ArrayView2<Ix>) -> Result<()> {
     let nelem = coords.shape()[0] as _;
-    let same_size = mem::size_of::<hsize_t>() == mem::size_of::<Ix>();
-    let coords = match (coords.as_slice(), same_size) {
-        (Some(coords), true) => {
-            Cow::Borrowed(slice::from_raw_parts(coords.as_ptr().cast(), coords.len()))
-        }
-        _ => Cow::Owned(coords.iter().map(|&x| x as _).collect()),
-    };
+    // Always use owned conversion to avoid unsafe raw pointer casting
+    // This is slightly less efficient but safer and more maintainable
+    let coords: Vec<hsize_t> = coords.iter().map(|&x| x as _).collect();
     h5check(H5Sselect_elements(space_id, H5S_SELECT_SET, nelem, coords.as_ptr()))?;
     Ok(())
 }
@@ -982,14 +972,14 @@ impl From<Array1<Ix>> for Selection {
     }
 }
 
-impl From<ArrayView2<'_, Ix>> for Selection {
-    fn from(points: ArrayView2<'_, Ix>) -> Self {
+impl<'a> From<ArrayView2<'a, Ix>> for Selection {
+    fn from(points: ArrayView2<'a, Ix>) -> Self {
         points.to_owned().into()
     }
 }
 
-impl From<ArrayView1<'_, Ix>> for Selection {
-    fn from(points: ArrayView1<'_, Ix>) -> Self {
+impl<'a> From<ArrayView1<'a, Ix>> for Selection {
+    fn from(points: ArrayView1<'a, Ix>) -> Self {
         points.to_owned().into()
     }
 }

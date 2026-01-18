@@ -5,8 +5,8 @@ use std::ops::Deref;
 use std::ptr::{addr_of, addr_of_mut};
 
 use hdf5_sys::h5t::{
-    H5T_cdata_t, H5T_class_t, H5T_cset_t, H5T_order_t, H5T_sign_t, H5T_str_t, H5Tarray_create2,
-    H5Tcompiler_conv, H5Tcopy, H5Tcreate, H5Tenum_create, H5Tenum_insert, H5Tequal, H5Tfind,
+    H5T_class_t, H5T_cset_t, H5T_order_t, H5T_sign_t, H5T_str_t, H5Tarray_create2,
+    H5Tcompiler_conv, H5Tcopy, H5Tcreate, H5Tenum_create, H5Tenum_insert, H5Tequal,
     H5Tget_array_dims2, H5Tget_array_ndims, H5Tget_class, H5Tget_cset, H5Tget_member_name,
     H5Tget_member_offset, H5Tget_member_type, H5Tget_member_value, H5Tget_nmembers, H5Tget_order,
     H5Tget_sign, H5Tget_size, H5Tget_super, H5Tinsert, H5Tis_variable_str, H5Tset_cset,
@@ -16,7 +16,7 @@ use hdf5_types::{
     CompoundField, CompoundType, EnumMember, EnumType, FloatSize, H5Type, IntSize, TypeDescriptor,
 };
 
-use crate::globals::{H5T_C_S1, H5T_NATIVE_INT, H5T_NATIVE_INT8};
+use crate::globals::{H5T_C_S1, H5T_NATIVE_INT8};
 use crate::internal_prelude::*;
 
 #[cfg(target_endian = "big")]
@@ -62,7 +62,9 @@ impl ObjectClass for Datatype {
         &self.0
     }
 
-    // TODO: short_repr()
+    fn short_repr(&self) -> Option<String> {
+        Some(format!("<datatype id={}>", self.id()))
+    }
 }
 
 impl Debug for Datatype {
@@ -171,10 +173,10 @@ impl Datatype {
         D: Borrow<Self>,
     {
         let dst = dst.borrow();
-        let mut cdata = H5T_cdata_t::default();
         h5lock!({
-            let noop = H5Tfind(*H5T_NATIVE_INT, *H5T_NATIVE_INT, &mut addr_of_mut!(cdata));
-            if H5Tfind(self.id(), dst.id(), &mut addr_of_mut!(cdata)) == noop {
+            // Check for no-op conversion by comparing type IDs directly
+            // This is more reliable than comparing function pointers returned by H5Tfind
+            if self.id() == dst.id() || H5Tequal(self.id(), dst.id()) > 0 {
                 Some(Conversion::NoOp)
             } else {
                 match H5Tcompiler_conv(self.id(), dst.id()) {
