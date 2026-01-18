@@ -36,11 +36,28 @@ impl ChunkInfo {
 }
 
 #[cfg(feature = "1.10.5")]
+fn get_num_chunks_by_space(ds: &Dataset, space: &Dataspace) -> Option<usize> {
+    let mut n: hsize_t = 0;
+    // SAFETY: HDF5 FFI call with valid dataset and dataspace handles
+    unsafe {
+        h5check(H5Dget_num_chunks(ds.id(), space.id(), &mut n)).map(|_| n as _).ok()
+    }
+}
+
+#[cfg(feature = "1.10.5")]
 pub(crate) fn chunk_info(ds: &Dataset, index: usize) -> Option<ChunkInfo> {
     if !ds.is_chunked() {
         return None;
     }
     h5lock!(ds.space().map_or(None, |s| {
+        // Check index bounds first to handle different HDF5 versions consistently
+        let Some(num_chunks) = get_num_chunks_by_space(ds, &s) else {
+            return None;
+        };
+        if index >= num_chunks {
+            return None;
+        }
+
         let mut chunk_info = ChunkInfo::new(ds.ndim());
         h5check(H5Dget_chunk_info(
             ds.id(),
