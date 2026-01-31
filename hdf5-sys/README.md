@@ -1,5 +1,11 @@
 # `hdf5-sys`
 
+[![Build](https://github.com/archebase/hdf5-rs/workflows/CI/badge.svg)](https://github.com/archebase/hdf5-rs/actions?query=branch%3Amain)
+[![Latest Version](https://img.shields.io/crates/v/hdf5-sys.svg)](https://crates.io/crates/hdf5-sys)
+[![Documentation](https://docs.rs/hdf5-sys/badge.svg)](https://docs.rs/hdf5-sys)
+[![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 This crate provides direct bindings to the HDF5 C library and allows to build
 the library from C sources if need be, so it can be linked in statically.
 
