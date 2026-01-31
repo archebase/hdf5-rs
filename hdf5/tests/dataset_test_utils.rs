@@ -3,6 +3,8 @@
 //! This module provides helper functions, macros, and test fixtures
 //! to make testing dataset operations easier and more comprehensive.
 
+#![allow(unused_macros)]
+
 use hdf5::{File, Group, Result};
 use ndarray::Array2;
 use std::ops::Deref;

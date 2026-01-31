@@ -168,6 +168,7 @@ impl Datatype {
         h5lock!(H5Tget_order(self.id())).into()
     }
 
+    #[allow(unpredictable_function_pointer_comparisons)]
     pub fn conv_path<D>(&self, dst: D) -> Option<Conversion>
     where
         D: Borrow<Self>,

@@ -4,7 +4,7 @@
 use std::convert::TryInto;
 use std::env;
 use std::error::Error;
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Debug};
 use std::fs;
 use std::os::raw::{c_int, c_uint};
 use std::path::{Path, PathBuf};
@@ -78,18 +78,6 @@ fn is_msvc() -> bool {
     // `cfg!(target_env = "msvc")` will report wrong value when using
     // MSVC toolchain targeting GNU.
     std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc"
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
-struct RuntimeError(String);
-
-impl Error for RuntimeError {}
-
-impl Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HDF5 runtime error: {}", self.0)
-    }
 }
 
 #[allow(non_snake_case, non_camel_case_types)]
@@ -709,7 +697,43 @@ impl Config {
     }
 }
 
+/// Register all custom cfg values to avoid "unexpected cfg" warnings.
+fn register_check_cfg() {
+    // Register all version-based feature flags
+    // 1.8.x versions
+    for v in 5..=21 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.8.{}\"))", v);
+    }
+    // 1.10.x versions
+    for v in 0..=8 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.10.{}\"))", v);
+    }
+    // 1.12.x versions
+    for v in 0..=2 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.12.{}\"))", v);
+    }
+    // 1.14.x versions
+    for v in 0..=1 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.14.{}\"))", v);
+    }
+
+    // Register special feature flags
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-parallel\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-direct\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-threadsafe\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-filter-deflate\"))");
+
+    // Register bare cfg names used in source files
+    println!("cargo::rustc-check-cfg=cfg(have_stdbool_h)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_10_1)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_10_2)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_12_0)");
+}
+
 fn main() {
+    // Register all custom cfg values first
+    register_check_cfg();
+
     if feature_enabled("STATIC") && std::env::var_os("HDF5_DIR").is_none() {
         get_build_and_emit();
     } else {
