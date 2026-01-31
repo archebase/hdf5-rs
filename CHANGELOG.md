@@ -4,6 +4,16 @@
 
 ### Added
 
+- Support for HDF5 version 2.0.0, including:
+  - Version detection and conditional compilation for HDF5 2.x
+  - Versioned API bindings for `H5Dread_chunk2`, `H5Tdecode2`, `H5Iregister_type2`
+  - New `H5T_COMPLEX` datatype class support in bindings
+  - Complex number predefined types (`H5T_COMPLEX_IEEE_F32LE`, etc.)
+  - bfloat16 predefined types (`H5T_FLOAT_BFLOAT16LE`, `H5T_FLOAT_BFLOAT16BE`)
+  - FP8 predefined types (`H5T_FLOAT_F8E4M3`, `H5T_FLOAT_F8E5M2`)
+  - `H5Tcomplex_create` function binding
+  - `Datatype::is_complex()` method (HDF5 2.0.0+)
+  - Comprehensive test suite for HDF5 2.0.0 features
 - Support for HDF5 version 1.14.0.
 - Support field renaming via `#[hdf5(rename = "new_name")]` helper attribute.
 - Add a `ByteReader` which implements `std::io::{Read, Seek}` for 1D `u8`

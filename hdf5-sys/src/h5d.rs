@@ -264,11 +264,28 @@ mod hdf5_1_10_0 {
 #[cfg(feature = "1.10.0")]
 pub use self::hdf5_1_10_0::*;
 
-#[cfg(feature = "1.10.3")]
+// H5Dread_chunk: signature changed in HDF5 2.0.0
+#[cfg(all(feature = "1.10.3", not(feature = "2.0.0")))]
 extern "C" {
     pub fn H5Dread_chunk(
         dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32, buf: *mut c_void,
     ) -> herr_t;
+}
+
+#[cfg(feature = "2.0.0")]
+extern "C" {
+    #[deprecated(note = "deprecated in HDF5 2.0.0, use H5Dread_chunk2")]
+    pub fn H5Dread_chunk1(
+        dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32, buf: *mut c_void,
+    ) -> herr_t;
+    pub fn H5Dread_chunk2(
+        dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32, buf: *mut c_void,
+        buf_size: *mut size_t,
+    ) -> herr_t;
+}
+
+#[cfg(feature = "1.10.3")]
+extern "C" {
     pub fn H5Dwrite_chunk(
         dset_id: hid_t, dxpl_id: hid_t, filters: u32, offset: *const hsize_t, data_size: size_t,
         buf: *const c_void,

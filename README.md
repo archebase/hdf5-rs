@@ -21,7 +21,7 @@ high-level wrappers for the HDF5 library API. Some of the features include:
 
 Direct low-level bindings are also available and are provided in the `hdf5-sys` crate.
 
-Requires HDF5 library of version 1.8.4 or later.
+Requires HDF5 library of version 1.8.4 or later (including HDF5 2.0.0+).
 
 ## Example
 
@@ -116,8 +116,12 @@ requires a reasonably recent Rust compiler (version 1.92 or newer).
 
 ### HDF5
 
-Required HDF5 version is 1.8.4 or newer. The library doesn't have to be built with
-threadsafe option enabled in order to make the user code threadsafe.
+Required HDF5 version is 1.8.4 or newer, including HDF5 2.0.0+. The library doesn't 
+have to be built with threadsafe option enabled in order to make the user code threadsafe.
+
+Note: HDF5 2.0.0 introduces new features including complex number datatypes, bfloat16,
+and FP8 floating point types. Some of these features require version-specific API bindings
+that are conditionally compiled based on the detected HDF5 version.
 
 Various HDF5 installation options are supported and tested: via package managers
 like homebrew and apt; system-wide installations on Windows; conda installations 

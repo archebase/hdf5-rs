@@ -168,6 +168,12 @@ impl Datatype {
         h5lock!(H5Tget_order(self.id())).into()
     }
 
+    /// Check if this datatype is a complex number type (HDF5 2.0.0+).
+    #[cfg(feature = "2.0.0")]
+    pub fn is_complex(&self) -> bool {
+        h5lock!(H5Tget_class(self.id())) == H5T_class_t::H5T_COMPLEX
+    }
+
     #[allow(unpredictable_function_pointer_comparisons)]
     pub fn conv_path<D>(&self, dst: D) -> Option<Conversion>
     where
@@ -300,6 +306,11 @@ impl Datatype {
                 H5T_class_t::H5T_VLEN => {
                     let base_dt = Self::from_id(H5Tget_super(id))?;
                     Ok(TD::VarLenArray(Box::new(base_dt.to_descriptor()?)))
+                }
+                // HDF5 2.0.0: Complex number datatype class
+                #[cfg(feature = "2.0.0")]
+                H5T_class_t::H5T_COMPLEX => {
+                    Err("Complex number datatypes are not yet supported in TypeDescriptor".into())
                 }
                 _ => Err("Unsupported datatype class".into()),
             }
