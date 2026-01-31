@@ -195,9 +195,8 @@ mod tests {
                     *mut std::os::raw::c_void,
                 ) -> crate::h5::herr_t = H5Dread_chunk1;
 
-                let _: unsafe extern "C" fn(
-                    *const std::os::raw::c_void,
-                ) -> crate::h5i::hid_t = H5Tdecode1;
+                let _: unsafe extern "C" fn(*const std::os::raw::c_void) -> crate::h5i::hid_t =
+                    H5Tdecode1;
 
                 let _: unsafe extern "C" fn(
                     usize,

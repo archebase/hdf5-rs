@@ -279,8 +279,8 @@ extern "C" {
         dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32, buf: *mut c_void,
     ) -> herr_t;
     pub fn H5Dread_chunk2(
-        dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32, buf: *mut c_void,
-        buf_size: *mut size_t,
+        dset_id: hid_t, dxpl_id: hid_t, offset: *const hsize_t, filters: *mut u32,
+        buf: *mut c_void, buf_size: *mut size_t,
     ) -> herr_t;
 }
 
