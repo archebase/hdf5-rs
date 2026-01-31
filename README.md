@@ -1,13 +1,13 @@
-# hdf5-rust
+# hdf5-rs
 
 HDF5 for Rust.
 
-[![Build](https://github.com/aldanor/hdf5-rust/workflows/CI/badge.svg)](https://github.com/aldanor/hdf5-rust/actions?query=branch%3Amaster)
+[![Build](https://github.com/archebase/hdf5-rs/workflows/CI/badge.svg)](https://github.com/archebase/hdf5-rs/actions?query=branch%3Amain)
 [![Latest Version](https://img.shields.io/crates/v/hdf5.svg)](https://crates.io/crates/hdf5)
 [![Documentation](https://docs.rs/hdf5/badge.svg)](https://docs.rs/hdf5)
-[![Changelog](https://img.shields.io/github/v/release/aldanor/hdf5-rust)](https://github.com/aldanor/hdf5-rust/blob/master/CHANGELOG.md)
-![hdf5: rustc 1.51+](https://img.shields.io/badge/hdf5-rustc_1.51+-lightblue.svg)
-[![Total Lines](https://tokei.rs/b1/github/aldanor/hdf5-rust)](https://github.com/aldanor/hdf5-rust)
+[![Changelog](https://img.shields.io/github/v/release/archebase/hdf5-rs)](https://github.com/archebase/hdf5-rs/blob/main/CHANGELOG.md)
+![hdf5: rustc 1.92+](https://img.shields.io/badge/hdf5-rustc_1.92+-lightblue.svg)
+[![Total Lines](https://tokei.rs/b1/github/archebase/hdf5-rs)](https://github.com/archebase/hdf5-rs)
 [![Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -112,7 +112,7 @@ toolchains; macOS Catalina).
 ### Rust
 
 `hdf5` crate is tested continuously for all three official release channels, and
-requires a reasonably recent Rust compiler (e.g. of version 1.51 or newer).
+requires a reasonably recent Rust compiler (version 1.92 or newer).
 
 ### HDF5
 
@@ -193,6 +193,15 @@ Few things to note when building on Windows:
   MinGW-GCC as it contains bintools for both 32-bit and 64-bit.
 - The recommended setup for `msvc` target is VS2015 x64 since that matches CI build configuration,
   however VS2013 and x86 should work equally well.
+
+## Credits
+
+This project is a fork of [hdf5-rust](https://github.com/aldanor/hdf5-rust), originally created and maintained by:
+
+- **Ivan Smirnov** ([@aldanor](https://github.com/aldanor)) - Original author and maintainer
+- **Magnus Ulimoen** ([@mulimoen](https://github.com/mulimoen)) - Major contributor and co-maintainer
+
+We are grateful for their excellent work in creating and maintaining the original HDF5 Rust bindings.
 
 ## License
 

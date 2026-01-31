@@ -9,11 +9,12 @@ rust-version = "1.92"
 authors = [
     "Ivan Smirnov <aldanor@users.noreply.github.com>",
     "Magnus Ulimoen <mulimoen@users.noreply.github.com>",
+    "Archebase Contributors <archebase@users.noreply.github.com>",
 ]
 keywords = ["hdf5"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/aldanor/hdf5-rust"
-homepage = "https://github.com/aldanor/hdf5-rust"
+repository = "https://github.com/archebase/hdf5-rs"
+homepage = "https://github.com/archebase/hdf5-rs"
 edition = "2021"
 
 [workspace.dependencies]
