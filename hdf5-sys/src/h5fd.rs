@@ -364,7 +364,8 @@ extern "C" {
     pub fn H5FDtruncate(file: *mut H5FD_t, dxpl_id: hid_t, closing: hbool_t) -> herr_t;
 }
 
-// drivers
+// drivers - HDF5 2.0 changed to use global variables instead of init functions
+#[cfg(not(feature = "2.0.0"))]
 extern "C" {
     pub fn H5FD_sec2_init() -> hid_t;
     pub fn H5FD_core_init() -> hid_t;
@@ -374,14 +375,35 @@ extern "C" {
     pub fn H5FD_multi_init() -> hid_t;
 }
 
-#[cfg(feature = "have-parallel")]
+// HDF5 2.0.0+: Driver IDs are exposed as global variables
+#[cfg(feature = "2.0.0")]
+extern "C" {
+    pub static H5FD_SEC2_id_g: hid_t;
+    pub static H5FD_CORE_id_g: hid_t;
+    pub static H5FD_STDIO_id_g: hid_t;
+    pub static H5FD_FAMILY_id_g: hid_t;
+    pub static H5FD_LOG_id_g: hid_t;
+    pub static H5FD_MULTI_id_g: hid_t;
+}
+
+#[cfg(all(feature = "have-parallel", not(feature = "2.0.0")))]
 extern "C" {
     pub fn H5FD_mpio_init() -> hid_t;
 }
 
-#[cfg(feature = "have-direct")]
+#[cfg(all(feature = "have-parallel", feature = "2.0.0"))]
+extern "C" {
+    pub static H5FD_MPIO_id_g: hid_t;
+}
+
+#[cfg(all(feature = "have-direct", not(feature = "2.0.0")))]
 extern "C" {
     pub fn H5FD_direct_init() -> hid_t;
+}
+
+#[cfg(all(feature = "have-direct", feature = "2.0.0"))]
+extern "C" {
+    pub static H5FD_DIRECT_id_g: hid_t;
 }
 
 #[cfg(feature = "1.10.0")]

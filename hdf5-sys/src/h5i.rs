@@ -62,6 +62,8 @@ extern "C" {
     pub fn H5Iinc_ref(id: hid_t) -> c_int;
     pub fn H5Idec_ref(id: hid_t) -> c_int;
     pub fn H5Iget_ref(id: hid_t) -> c_int;
+    // H5Iregister_type: signature changed in HDF5 2.0.0 (hash_size removed)
+    #[cfg(not(feature = "2.0.0"))]
     pub fn H5Iregister_type(
         hash_size: size_t, reserved: c_uint, free_func: H5I_free_t,
     ) -> H5I_type_t;
@@ -93,4 +95,14 @@ extern "C" {
         type_: H5I_type_t, object: *const c_void, realize_cb: H5I_future_realize_func_t,
         discard_cb: H5I_future_discard_func_t,
     ) -> hid_t;
+}
+
+// H5Iregister_type: signature changed in HDF5 2.0.0 (hash_size removed)
+#[cfg(feature = "2.0.0")]
+extern "C" {
+    #[deprecated(note = "deprecated in HDF5 2.0.0, use H5Iregister_type2")]
+    pub fn H5Iregister_type1(
+        hash_size: size_t, reserved: c_uint, free_func: H5I_free_t,
+    ) -> H5I_type_t;
+    pub fn H5Iregister_type2(reserved: c_uint, free_func: H5I_free_t) -> H5I_type_t;
 }

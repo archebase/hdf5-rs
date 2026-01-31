@@ -1,353 +1,184 @@
-# Strata - Embodiment AI Query Engine
+# HDF5-Rust
 
-This is the Strata project, a domain-specific query engine for embodiment AI data.
+Rust bindings for the HDF5 library, providing safe idiomatic Rust wrappers around low-level FFI bindings.
 
 ## Project Structure
 
+This is a Cargo workspace with multiple interdependent crates:
+
 ```
-strata/
-├── api/                    # Go API layer (Fiber framework)
-│   ├── cmd/strata-api/     # Main entry point
-│   └── internal/           # Internal packages (handlers, middleware, services)
-├── engine/                 # Query engine (Rust + Python)
-│   ├── strata-core/        # Rust core (DataFusion extensions)
-│   ├── strata-flight/      # Arrow Flight SQL server and CLI
-│   ├── strata-python/      # PyO3 Python bindings
-│   └── strata/             # Python package
-├── catalog/                # MySQL migrations
-└── deploy/                 # Docker, K8s configs
+hdf5-rust/
+├── hdf5/                    # Main library - high-level HDF5 API
+├── hdf5-types/              # Native Rust equivalents of HDF5 types
+├── hdf5-derive/             # Procedural macro for deriving H5Type trait
+├── hdf5-sys/                # Low-level FFI bindings to HDF5 C library
+├── hdf5-src/                # Build scripts for compiling HDF5 from source
+├── tests/                   # Integration tests
+└── .github/workflows/       # CI configuration
 ```
 
 ## Key Technologies
 
-- **DataFusion (Rust)**: Core query engine with SQL parsing, optimization, execution
-- **Arrow Flight SQL**: High-performance gRPC protocol for database connectivity (port 50051)
-- **PyO3**: Rust-Python bindings for the query engine
-- **Go (Fiber)**: REST API layer with auth, rate limiting
-- **MySQL**: Catalog for dataset metadata, UDFs, query logs
-- **Lance**: Columnar format with vector search for embeddings
-- **Ray**: Distributed execution for materialization and Python UDF parallelization
+- **HDF5 C Library**: Hierarchical Data Format for scientific data
+- **Rust FFI**: Low-level bindings to libhdf5
+- **Procedural Macros**: `#[derive(H5Type)]` for automatic type mappings
+- **CMake**: For building bundled HDF5 from source
+- **pkg-config**: For finding system HDF5 installations
 
-## Design Documentation
+## Build System
 
-Design documents live in `design/`. These describe what we're building and why—not how to use the system.
+### Features
 
-```
-design/
-├── README.md                    # Design doc index
-├── DEVELOPMENT.md               # Developer setup guide
-│
-├── data_ingestion/              # Data ingestion feature
-│   ├── overview.md              # Core concepts, SQL syntax
-│   ├── bag_support.md           # Phase 3c: BAG design
-│   ├── ray_integration.md       # Phase 3d: Ray design
-│   └── status.md                # Implementation status, task lists
-│
-└── distributed_query/           # Distributed query feature
-    └── strategy.md
-```
+Main features in the `hdf5` crate:
+- `static`: Compile and statically link bundled HDF5
+- `zlib`: Enable zlib compression filter
+- `lzf`: Enable LZF compression filter
+- `blosc`: Enable blosc compression filters
+- `mpio`: Enable MPI parallel support
+- `complex`: Enable complex number types
+- `f16`: Enable float16 type support
 
-### Design Doc Conventions
+### Version-Based Features
 
-1. **One feature per folder** — Group related design docs together (e.g., `data_ingestion/`, `distributed_query/`)
+Features are auto-enabled based on detected HDF5 version:
+- `1_8_4`, `1_8_5`, ..., `1_14_4`: Specific HDF5 version support
+- `hdf5_1_10_0`, `hdf5_1_12_0`, etc.: Major version milestones
 
-2. **Separate design from status** — Design docs describe architecture; `status.md` tracks implementation progress
-
-3. **Feature-scoped status** — Each feature folder has its own `status.md` with:
-   - Implementation phases with checkboxes
-   - Component status table
-   - Task lists
-
-4. **Use `design/` for internal docs** — User-facing documentation (tutorials, how-to guides) goes in `docs/` (future)
-
-### Writing a Design Doc
-
-Start with a clear problem statement and proposed solution:
-
-```markdown
-# Feature Name Design
-
-## Problem Statement
-What problem are we solving?
-
-## Proposed Solution
-High-level architecture and approach.
-
-## Detailed Design
-- Component diagrams
-- Data structures
-- API contracts
-
-## Implementation Plan
-Phase 1, Phase 2, ...
-
-## Open Questions
-Unresolved issues for discussion
-```
-
-Reference existing design docs for style:
-- `design/data_ingestion/overview.md` — Broad feature overview
-- `design/data_ingestion/bag_support.md` — Specific component design
-- `design/distributed_query/strategy.md` — Strategic analysis
-
-## Development Commands
+### Building
 
 ```bash
-make dev-up              # Start infrastructure (MySQL, MinIO, Ray)
-make build               # Build all components
-make test                # Run all tests
-make run-api             # Start the API server
-make run-flight-server   # Start Arrow Flight SQL server (port 50051)
-make strata-cli          # Run CLI client (ARGS="--query 'SELECT 1'")
-make help                # Show all commands
+cargo build                   # Build with system HDF5
+cargo build --features static  # Build with bundled HDF5
+cargo test                     # Run all tests
+cargo fmt                      # Format code
+cargo clippy                   # Run linter
 ```
 
-## Claude Code Guidelines
+## Code Organization
 
-When working on this project:
+### High-Level API (hdf5/src/)
 
-1. **API Changes**: Go code in `api/`. Use Fiber conventions, add handlers to `internal/handler/`.
-2. **Query Engine**: Rust code in `engine/strata-core/`. DataFusion extensions, UDFs, table providers.
-3. **Flight SQL**: Rust code in `engine/strata-flight/`. Server, session management, CLI client.
-4. **Python Bindings**: `engine/strata-python/` for PyO3 bindings, `engine/strata/` for Python API.
-5. **Database**: Add migrations to `catalog/migrations/` with sequential numbering.
+Core modules:
+- `error.rs`: Error handling with `H5Error` and `Result` types
+- `globals.rs`: Global library initialization and state
+- `sync.rs`: Thread safety (reentrant mutexes for non-threadsafe libhdf5)
+- `handle.rs`: Handle management for HDF5 objects
+- `dim.rs`: Dimension utilities
 
-### Code Style
+High-level API (`hl/` directory):
+- `file.rs`: File operations
+- `group.rs`: Group (directory-like) operations
+- `dataset.rs`: Dataset operations
+- `datatype.rs`: Type definitions
+- `dataspace.rs`: Data space and dimensions
+- `attribute.rs`: Attribute operations
+- `object.rs`: Generic object operations
+- `location.rs`: Location/namespace management
 
-- **Rust**: Use `cargo fmt` and `cargo clippy`
-- **Python**: Use `black` and `ruff`
-- **Go**: Use `gofmt` and standard Go conventions
+Property lists (`plist/` directory):
+- File creation/access properties
+- Dataset creation/access properties
+- Link creation properties
 
-#### Example Naming Convention
+### Low-Level FFI (hdf5-sys/src/)
 
-In code comments, documentation, and examples, use the consistent naming sequence:
-- **foo** - First example item
-- **bar** - Second example item
-- **baz** - Third example item
-- **pux** - Fourth example item (used when a fourth distinct example is needed)
+Organized by HDF5 C modules:
+- `h5.rs`: Core HDF5 functions
+- `h5a.rs`: Attributes (H5A_* functions)
+- `h5d.rs`: Datasets (H5D_* functions)
+- `h5f.rs`: Files (H5F_* functions)
+- `h5g.rs`: Groups (H5G_* functions)
+- `h5t.rs`: Datatypes (H5T_* functions)
+- `h5s.rs`: Dataspaces (H5S_* functions)
+- `h5p.rs`: Property lists (H5P_* functions)
+- And others (h5i, h5l, h5o, h5z, etc.)
 
-This convention applies to:
-- Variable names in code comments
-- Type names in documentation examples
-- Function/method names in examples
-- File names in examples
+Each FFI file uses:
+- `pub unsafe fn` for raw C function bindings
+- `extern "C"` for C ABI
+- Type-safe wrappers where applicable
 
-```
-// Good: Uses standard example names
-let foo_type = "foo/Msg";
-let bar_type = "bar/Msg";
-let baz_type = "baz/Msg";
-let pux_type = "pux/Msg";
+## Development Guidelines
 
-// Bad: Uses inconsistent naming
-let alpha = "alpha/Msg";
-let beta = "beta/Msg";
-let gamma = "gamma/Msg";
-```
+### When Adding New HDF5 Functions
 
-### Testing
+1. **FFI Layer (hdf5-sys)**: Add raw bindings to appropriate `h5*.rs` file
+2. **High-Level Wrapper (hdf5/hl/)**: Create safe Rust wrappers
+3. **Feature Gates**: Use `cfg(feature = "1_XX_X")` for version-specific APIs
+4. **Tests**: Add tests in `hdf5/tests/`
 
-#### Test Levels
+### Error Handling
 
-1. **Unit Tests**: Test individual components in isolation
-   - Located in `tests/<component>_tests.rs` files
-   - Fast, no external dependencies
-   - Example: `ros1_decoder_tests.rs`, `topic_mapper_tests.rs`
-
-2. **Integration Tests**: Test component interactions using direct library calls
-   - Located in `tests/<component>_integration_tests.rs` or `tests/<component>_converter_tests.rs`
-   - May use `StrataSession` directly
-   - Example: `bag_converter_tests.rs`, `mcap_integration_tests.rs`
-
-3. **E2E Tests**: Test the full system through network protocols
-   - Located in `strata-flight/tests/strata_sql_tests.rs` (Rust) or `tests/e2e/` (Python)
-   - Start Flight SQL server as a separate process
-   - Use `strata-cli` or Flight SQL client to execute commands
-   - Run with `make test-e2e`
-
-#### Test Naming Convention
-
-Use descriptive names that clearly state what is being tested and the expected behavior:
-
-```
-test_<subject>_<behavior_or_condition>
-```
-
-Patterns by test type:
-- **Success cases**: `test_<component>_<action>_<input_or_condition>`
-  - `test_reader_opens_valid_bag_file`
-  - `test_decoder_creates_successfully`
-
-- **Error cases**: `test_<component>_<action>_for_<error_condition>`
-  - `test_reader_returns_error_for_nonexistent_file`
-  - `test_decode_without_schema_returns_error`
-
-- **Mapping/transformation**: `test_<component>_maps_<input>_to_<output>`
-  - `test_mapper_maps_joint_state_to_joint_states_stream`
-  - `test_mapper_maps_image_to_video_frames_stream`
-
-- **Property assertions**: `test_<component>_<property>_<assertion>`
-  - `test_reader_messages_have_valid_timestamps`
-  - `test_reader_connections_contains_valid_metadata`
-
-Examples:
-- `test_reader_opens_valid_bag_file` - Good: clear subject and behavior
-- `test_decode_int32_returns_correct_field` - Good: specific input and outcome
-- `test_bag_reader` - Bad: too vague, doesn't describe what's being tested
-
-#### Test File Organization
-
-```
-engine/strata-core/tests/
-├── common/
-│   └── mod.rs                # Shared utilities, fixtures, assertions
-├── ros1_decoder_tests.rs     # Unit tests for Ros1Decoder
-├── bag_reader_tests.rs       # Unit tests for BagReader
-├── bag_converter_tests.rs    # Integration tests for BAG conversion
-├── topic_mapper_tests.rs     # Unit tests for TopicMapper
-├── mcap_tests.rs             # Unit tests for MCAP reader
-├── mcap_integration_tests.rs     # Integration tests for MCAP conversion
-└── session_integration_tests.rs  # StrataSession integration tests
-
-engine/strata-flight/tests/
-├── common/
-│   └── mod.rs                # Flight SQL test utilities
-├── query_tests.rs            # Flight SQL query tests
-├── metadata_tests.rs         # Flight SQL metadata tests
-├── prepared_stmt_tests.rs    # Prepared statement tests
-├── transaction_tests.rs      # Transaction handling tests
-├── doput_tests.rs            # DoPut operation tests
-├── tls_tests.rs              # TLS/security tests
-└── strata_sql_tests.rs       # Strata SQL syntax E2E tests (BAG/MCAP)
-
-tests/e2e/
-└── test_e2e.py               # Python E2E tests using subprocess
-```
-
-#### Shared Test Utilities
-
-Use the `common` module for shared test utilities:
+All HDF5 functions can fail. Use the `Result` type:
 
 ```rust
-mod common;
+use hdf5::Result;
 
-#[test]
-fn test_example() {
-    let bag_path = common::bag_demo_fixture();
-    skip_if_missing!(&bag_path, "demo.bag");
-
-    // Use common assertions
-    common::assert_lance_dataset_valid(&output_path);
+fn do_something() -> Result<()> {
+    let file = hdf5::File::open("data.h5")?;
+    // ...
+    Ok(())
 }
 ```
 
-Available utilities:
-- `fixtures_dir()`, `bag_demo_fixture()`, `mcap_nissan_fixture()` - Fixture paths
-- `temp_output_dir()`, `temp_file_with_content()` - Temporary files
-- `assert_lance_dataset_valid()`, `assert_episodes_subdataset_exists()` - Lance assertions
-- `assert_error_contains()`, `assert_is_error()` - Error assertions
-- `default_bag_convert_options()`, `default_mcap_convert_options()` - Default options
-- `Ros1MessageBuilder` - Build test message data
+### Thread Safety
 
-#### Writing Good Assertions
+The HDF5 C library is not thread-safe by default. The library uses reentrant mutexes:
+- Global initialization in `globals.rs`
+- Handle locking via `sync.rs`
+- Do not call HDF5 functions from multiple threads without proper synchronization
 
-Always include context in assertions:
+### Type Derivation
+
+Use the derive macro for custom types:
 
 ```rust
-// Bad - no context on failure
-assert!(result.is_ok());
-assert!(count > 0);
-
-// Good - clear failure message
-assert!(
-    result.is_ok(),
-    "Expected successful conversion, got error: {:?}",
-    result.err()
-);
-assert!(
-    count > 0,
-    "Expected at least one message, got {}",
-    count
-);
+#[derive(H5Type)]
+struct MyData {
+    x: i32,
+    y: f64,
+}
 ```
 
-#### Running Tests
+## Testing
+
+### Test Organization
+
+- `hdf5/tests/`: Integration tests
+- `dataset_test.rs`: Dataset operations
+- `test_plist.rs`: Property lists
+- `test_real_file.rs`: Real file I/O tests
+- `common/dataset_test_utils.rs`: Shared utilities
+
+### Running Tests
 
 ```bash
-make test                 # Run all tests
-make test-engine          # Run Rust engine tests only
-cd engine && cargo test   # Run Rust tests with output
-cd engine && cargo test -- --nocapture  # Show println! output
-make test-e2e             # Run E2E tests (starts Flight server)
+cargo test                      # Run all tests
+cargo test --features static    # Test with bundled HDF5
+cargo test --no-fail-fast       # Don't stop on first failure
 ```
 
-### Task Management with Todo Lists
+## CI/CD
 
-For complicated tasks involving multiple components or phases, always use todo lists to track progress:
+GitHub Actions (`.github/workflows/ci.yml`) tests:
+- Linux (Ubuntu with system HDF5)
+- macOS (Homebrew HDF5)
+- Windows (vcpkg HDF5)
+- Static builds (bundled HDF5)
+- Feature matrix
+- MSRV compliance
 
-1. **When to Create a Todo List**:
-   - Multi-file changes spanning different modules
-   - Implementation of design documents with multiple phases
-   - Bug fixes requiring investigation across components
-   - Any task with 3+ distinct steps
+## Current Work
 
-2. **Todo List Structure**:
-   - Group items by logical phases or components
-   - Use `===` prefix for phase headers (e.g., `=== Phase 1: Foundation ===`)
-   - Mark status: `completed`, `in_progress`, or `pending`
-   - Only one item should be `in_progress` at a time
+The project is undergoing updates for HDF5 1.14.4 support:
+- MSRV bumped to 1.92
+- Rust edition 2024
+- Modernized dependency syntax
+- Enhanced feature gating
 
-3. **Maintaining the Todo List**:
-   - Update status immediately when completing a task
-   - Add new items discovered during implementation
-   - Remove items that become irrelevant
-   - Keep the list visible to track overall progress
+## Code Style
 
-4. **Example Todo List for Multi-Phase Implementation**:
-   ```
-   === Phase 1: Core Infrastructure ===
-   [completed] Create base types and traits
-   [completed] Implement worker abstraction
-   [in_progress] Add progress tracking
-
-   === Phase 2: Integration ===
-   [pending] Wire up to existing API
-   [pending] Add SQL command support
-
-   === Testing ===
-   [pending] Unit tests
-   [pending] Integration tests
-   ```
-
-### Debug Scripts
-
-**RULE: All debug/diagnostic scripts go in `src/bin/`, not inline Python/bash scripts.**
-
-When investigating issues or creating diagnostic tools:
-- Create proper Rust binaries in `src/bin/*.rs`
-- Use descriptive names: `check_*.rs`, `debug_*.rs`, `diagnose_*.rs`
-- Build and run with `cargo run --bin <name>` or `cargo build --bin <name>`
-- This ensures debug tools are version-controlled, type-checked, and reusable
-
-**Examples**:
-- `src/bin/mcap_info.rs` - Dump MCAP file info
-- `src/bin/debug_schema.rs` - Examine schema parsing
-- `src/bin/check_bag.rs` - Verify BAG file structure
-
-**When to create debug scripts**:
-- Inspecting MCAP/BAG file contents
-- Verifying schema transformations
-- Tracing decoder behavior
-- Any investigation that benefits from a reusable tool
-
-**Anti-pattern to avoid**:
-```bash
-# DON'T: Use inline Python/bash heredocs
-cat > /tmp/check.py << EOF
-import...
-EOF
-python /tmp/check.py
-
-# DO: Create a proper binary in src/bin/
-cargo run --bin check_mcap
-```
+- Use `cargo fmt` for formatting
+- Use `cargo clippy` for linting
+- Follow Rust naming conventions
+- Document all public APIs

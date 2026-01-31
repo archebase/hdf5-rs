@@ -2,16 +2,31 @@
 
 use std::mem;
 use std::ops::Deref;
+#[cfg(not(feature = "2.0.0"))]
 use std::sync::OnceLock;
 
-#[cfg(feature = "have-direct")]
+// HDF5 < 2.0.0: Use init functions for file drivers
+#[cfg(all(feature = "have-direct", not(feature = "2.0.0")))]
 use hdf5_sys::h5fd::H5FD_direct_init;
-#[cfg(feature = "have-parallel")]
+#[cfg(all(feature = "have-parallel", not(feature = "2.0.0")))]
 use hdf5_sys::h5fd::H5FD_mpio_init;
+#[cfg(not(feature = "2.0.0"))]
 use hdf5_sys::h5fd::{
     H5FD_core_init, H5FD_family_init, H5FD_log_init, H5FD_multi_init, H5FD_sec2_init,
     H5FD_stdio_init,
 };
+
+// HDF5 2.0.0+: Use global variables for file drivers
+#[cfg(all(feature = "have-direct", feature = "2.0.0"))]
+use hdf5_sys::h5fd::H5FD_DIRECT_id_g;
+#[cfg(all(feature = "have-parallel", feature = "2.0.0"))]
+use hdf5_sys::h5fd::H5FD_MPIO_id_g;
+#[cfg(feature = "2.0.0")]
+use hdf5_sys::h5fd::{
+    H5FD_CORE_id_g, H5FD_FAMILY_id_g, H5FD_LOG_id_g, H5FD_MULTI_id_g, H5FD_SEC2_id_g,
+    H5FD_STDIO_id_g,
+};
+
 use hdf5_sys::{h5e, h5p, h5t};
 
 use crate::internal_prelude::*;
@@ -331,6 +346,8 @@ pub fn h5r_dset_reg_ref_buf_size() -> usize {
 }
 
 // File drivers - use OnceLock for lazy initialization with Deref for * operator support
+// HDF5 < 2.0.0: Use init functions
+#[cfg(not(feature = "2.0.0"))]
 macro_rules! h5fd_driver_static {
     ($name:ident, $init:ident) => {
         pub struct $name {
@@ -354,22 +371,65 @@ macro_rules! h5fd_driver_static {
     };
 }
 
+// HDF5 2.0.0+: Use global variables directly
+#[cfg(feature = "2.0.0")]
+macro_rules! h5fd_driver_static_2_0 {
+    ($name:ident, $global:ident) => {
+        paste::paste! {
+            pub struct [<$name _Type>];
+
+            impl Deref for [<$name _Type>] {
+                type Target = hid_t;
+                fn deref(&self) -> &Self::Target {
+                    crate::sync::ensure_library_init();
+                    unsafe { &$global }
+                }
+            }
+
+            pub static $name: [<$name _Type>] = [<$name _Type>];
+        }
+    };
+}
+
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_CORE, H5FD_core_init);
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_SEC2, H5FD_sec2_init);
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_STDIO, H5FD_stdio_init);
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_FAMILY, H5FD_family_init);
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_LOG, H5FD_log_init);
+#[cfg(not(feature = "2.0.0"))]
 h5fd_driver_static!(H5FD_MULTI, H5FD_multi_init);
 
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_CORE, H5FD_CORE_id_g);
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_SEC2, H5FD_SEC2_id_g);
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_STDIO, H5FD_STDIO_id_g);
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_FAMILY, H5FD_FAMILY_id_g);
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_LOG, H5FD_LOG_id_g);
+#[cfg(feature = "2.0.0")]
+h5fd_driver_static_2_0!(H5FD_MULTI, H5FD_MULTI_id_g);
+
 // MPI-IO file driver
-#[cfg(feature = "have-parallel")]
+#[cfg(all(feature = "have-parallel", not(feature = "2.0.0")))]
 h5fd_driver_static!(H5FD_MPIO, H5FD_mpio_init);
+#[cfg(all(feature = "have-parallel", feature = "2.0.0"))]
+h5fd_driver_static_2_0!(H5FD_MPIO, H5FD_MPIO_id_g);
 #[cfg(not(feature = "have-parallel"))]
 pub static H5FD_MPIO: hid_t = H5I_INVALID_HID;
 
 // Direct VFD
-#[cfg(feature = "have-direct")]
+#[cfg(all(feature = "have-direct", not(feature = "2.0.0")))]
 h5fd_driver_static!(H5FD_DIRECT, H5FD_direct_init);
+#[cfg(all(feature = "have-direct", feature = "2.0.0"))]
+h5fd_driver_static_2_0!(H5FD_DIRECT, H5FD_DIRECT_id_g);
 #[cfg(not(feature = "have-direct"))]
 pub static H5FD_DIRECT: hid_t = H5I_INVALID_HID;
 

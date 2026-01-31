@@ -4,7 +4,7 @@
 use std::convert::TryInto;
 use std::env;
 use std::error::Error;
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Debug};
 use std::fs;
 use std::os::raw::{c_int, c_uint};
 use std::path::{Path, PathBuf};
@@ -29,7 +29,9 @@ impl Version {
     }
 
     pub fn parse(s: &str) -> Option<Self> {
-        let re = Regex::new(r"^(1)\.(8|10|12|14)\.(\d\d?)(_|.\d+)?((-|.)(patch)?\d+)?$").ok()?;
+        // Match HDF5 1.x versions (1.8, 1.10, 1.12, 1.14) and 2.x versions (2.0, etc.)
+        let re =
+            Regex::new(r"^(1|2)\.(0|8|10|12|14)\.(\d\d?)(_|.\d+)?((-|.)(patch)?\d+)?$").ok()?;
         let captures = re.captures(s)?;
         Some(Self {
             major: captures.get(1).and_then(|c| c.as_str().parse::<u8>().ok())?,
@@ -39,7 +41,9 @@ impl Version {
     }
 
     pub fn is_valid(self) -> bool {
+        // Accept HDF5 1.8.4+ or HDF5 2.0.0+
         self >= Self { major: 1, minor: 8, micro: 4 }
+            || self >= Self { major: 2, minor: 0, micro: 0 }
     }
 }
 
@@ -78,18 +82,6 @@ fn is_msvc() -> bool {
     // `cfg!(target_env = "msvc")` will report wrong value when using
     // MSVC toolchain targeting GNU.
     std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc"
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
-struct RuntimeError(String);
-
-impl Error for RuntimeError {}
-
-impl Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HDF5 runtime error: {}", self.0)
-    }
 }
 
 #[allow(non_snake_case, non_camel_case_types)]
@@ -336,15 +328,16 @@ mod macos {
         }
         // We have to explicitly support homebrew since the HDF5 bottle isn't
         // packaged with pkg-config metadata.
-        let (v18, v110, v112, v114) = if let Some(version) = config.version {
+        let (v18, v110, v112, v114, v20) = if let Some(version) = config.version {
             (
                 version.major == 1 && version.minor == 8,
                 version.major == 1 && version.minor == 10,
                 version.major == 1 && version.minor == 12,
                 version.major == 1 && version.minor == 14,
+                version.major == 2 && version.minor == 0,
             )
         } else {
-            (false, false, false, false)
+            (false, false, false, false, false)
         };
         println!(
             "Attempting to find HDF5 via Homebrew ({})...",
@@ -356,32 +349,42 @@ mod macos {
                 "1.12.*"
             } else if v114 {
                 "1.14.*"
+            } else if v20 {
+                "2.0.*"
             } else {
                 "any version"
             }
         );
-        if !(v18 || v110 || v112) {
+        // Try HDF5 2.0 first (if not requesting a specific 1.x version)
+        if !(v18 || v110 || v112 || v114) {
+            if let Some(out) = run_command("brew", &["--prefix", "hdf5"]) {
+                if is_root_dir(&out) {
+                    config.inc_dir = Some(PathBuf::from(out).join("include"));
+                }
+            }
+        }
+        if config.inc_dir.is_none() && !(v18 || v110 || v112 || v20) {
             if let Some(out) = run_command("brew", &["--prefix", "hdf5@1.14"]) {
                 if is_root_dir(&out) {
                     config.inc_dir = Some(PathBuf::from(out).join("include"));
                 }
             }
         }
-        if !(v18 || v110) {
+        if config.inc_dir.is_none() && !(v18 || v110 || v20) {
             if let Some(out) = run_command("brew", &["--prefix", "hdf5@1.12"]) {
                 if is_root_dir(&out) {
                     config.inc_dir = Some(PathBuf::from(out).join("include"));
                 }
             }
         }
-        if config.inc_dir.is_none() && !v18 {
+        if config.inc_dir.is_none() && !(v18 || v20) {
             if let Some(out) = run_command("brew", &["--prefix", "hdf5@1.10"]) {
                 if is_root_dir(&out) {
                     config.inc_dir = Some(PathBuf::from(out).join("include"));
                 }
             }
         }
-        if config.inc_dir.is_none() {
+        if config.inc_dir.is_none() && !v20 {
             if let Some(out) = run_command("brew", &["--prefix", "hdf5@1.8"]) {
                 if is_root_dir(&out) {
                     config.inc_dir = Some(PathBuf::from(out).join("include"));
@@ -657,11 +660,15 @@ impl Config {
 
     pub fn emit_cfg_flags(&self) {
         let version = self.header.version;
-        assert!(version >= Version::new(1, 8, 4), "required HDF5 version: >=1.8.4");
-        let mut vs: Vec<_> = (5..=21).map(|v| Version::new(1, 8, v)).collect(); // 1.8.[5-23]
-        vs.extend((0..=8).map(|v| Version::new(1, 10, v))); // 1.10.[0-10]
+        assert!(
+            version >= Version::new(1, 8, 4) || version >= Version::new(2, 0, 0),
+            "required HDF5 version: >=1.8.4 or >=2.0.0"
+        );
+        let mut vs: Vec<_> = (5..=21).map(|v| Version::new(1, 8, v)).collect(); // 1.8.[5-21]
+        vs.extend((0..=10).map(|v| Version::new(1, 10, v))); // 1.10.[0-10]
         vs.extend((0..=2).map(|v| Version::new(1, 12, v))); // 1.12.[0-2]
-        vs.extend((0..=2).map(|v| Version::new(1, 14, v))); // 1.14.[0-2]
+        vs.extend((0..=4).map(|v| Version::new(1, 14, v))); // 1.14.[0-4]
+        vs.extend((0..=3).map(|v| Version::new(2, 0, v))); // 2.0.[0-3]
         for v in vs.into_iter().filter(|&v| version >= v) {
             println!("cargo:rustc-cfg=feature=\"{}.{}.{}\"", v.major, v.minor, v.micro);
             println!("cargo:version_{}_{}_{}=1", v.major, v.minor, v.micro);
@@ -709,7 +716,48 @@ impl Config {
     }
 }
 
+/// Register all custom cfg values to avoid "unexpected cfg" warnings.
+fn register_check_cfg() {
+    // Register all version-based feature flags
+    // 1.8.x versions
+    for v in 5..=21 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.8.{}\"))", v);
+    }
+    // 1.10.x versions
+    for v in 0..=10 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.10.{}\"))", v);
+    }
+    // 1.12.x versions
+    for v in 0..=2 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.12.{}\"))", v);
+    }
+    // 1.14.x versions
+    for v in 0..=4 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"1.14.{}\"))", v);
+    }
+    // 2.0.x versions
+    for v in 0..=3 {
+        println!("cargo::rustc-check-cfg=cfg(feature, values(\"2.0.{}\"))", v);
+    }
+
+    // Register special feature flags
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-parallel\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-direct\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-threadsafe\"))");
+    println!("cargo::rustc-check-cfg=cfg(feature, values(\"have-filter-deflate\"))");
+
+    // Register bare cfg names used in source files
+    println!("cargo::rustc-check-cfg=cfg(have_stdbool_h)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_10_1)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_10_2)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_1_12_0)");
+    println!("cargo::rustc-check-cfg=cfg(hdf5_2_0_0)");
+}
+
 fn main() {
+    // Register all custom cfg values first
+    register_check_cfg();
+
     if feature_enabled("STATIC") && std::env::var_os("HDF5_DIR").is_none() {
         get_build_and_emit();
     } else {
