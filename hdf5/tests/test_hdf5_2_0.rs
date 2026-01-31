@@ -47,14 +47,12 @@ mod hdf5_2_0_tests {
 
         // These should be accessible (they are extern statics)
         // We just verify they exist by referencing them
-        unsafe {
-            let _ = *H5T_COMPLEX_IEEE_F32LE;
-            let _ = *H5T_COMPLEX_IEEE_F32BE;
-            let _ = *H5T_COMPLEX_IEEE_F64LE;
-            let _ = *H5T_COMPLEX_IEEE_F64BE;
-            let _ = *H5T_NATIVE_FLOAT_COMPLEX;
-            let _ = *H5T_NATIVE_DOUBLE_COMPLEX;
-        }
+        let _ = *H5T_COMPLEX_IEEE_F32LE;
+        let _ = *H5T_COMPLEX_IEEE_F32BE;
+        let _ = *H5T_COMPLEX_IEEE_F64LE;
+        let _ = *H5T_COMPLEX_IEEE_F64BE;
+        let _ = *H5T_NATIVE_FLOAT_COMPLEX;
+        let _ = *H5T_NATIVE_DOUBLE_COMPLEX;
     }
 
     #[test]
@@ -62,10 +60,8 @@ mod hdf5_2_0_tests {
         // Test that bfloat16 predefined types are available
         use hdf5_sys::h5t::*;
 
-        unsafe {
-            let _ = *H5T_FLOAT_BFLOAT16LE;
-            let _ = *H5T_FLOAT_BFLOAT16BE;
-        }
+        let _ = *H5T_FLOAT_BFLOAT16LE;
+        let _ = *H5T_FLOAT_BFLOAT16BE;
     }
 
     #[test]
@@ -73,10 +69,8 @@ mod hdf5_2_0_tests {
         // Test that FP8 predefined types are available
         use hdf5_sys::h5t::*;
 
-        unsafe {
-            let _ = *H5T_FLOAT_F8E4M3;
-            let _ = *H5T_FLOAT_F8E5M2;
-        }
+        let _ = *H5T_FLOAT_F8E4M3;
+        let _ = *H5T_FLOAT_F8E5M2;
     }
 
     #[test]

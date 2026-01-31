@@ -621,9 +621,14 @@ pub mod tests {
             file.new_dataset::<u32>().no_chunk().shape((10, 20)).create("a/foo").unwrap();
             file.new_dataset::<u32>().no_chunk().shape((10, 20)).create("a/123").unwrap();
             file.new_dataset::<u32>().no_chunk().shape((10, 20)).create("a/bar").unwrap();
-            assert_eq!(group_a.member_names().unwrap(), vec!["123", "bar", "foo"]);
+            // Sort before comparing since iteration order may vary across HDF5 versions
+            let mut names_a = group_a.member_names().unwrap();
+            names_a.sort();
+            assert_eq!(names_a, vec!["123", "bar", "foo"]);
             assert_eq!(group_b.member_names().unwrap().len(), 0);
-            assert_eq!(file.member_names().unwrap(), vec!["a", "b"]);
+            let mut names_root = file.member_names().unwrap();
+            names_root.sort();
+            assert_eq!(names_root, vec!["a", "b"]);
         })
     }
 

@@ -65,6 +65,9 @@ fn main() {
     let targeting_windows = env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows";
     let debug_postfix = if targeting_windows { "_D" } else { "_debug" };
 
+    // HDF5 2.0+ no longer adds debug postfix by default, so we set it explicitly
+    cfg.define("CMAKE_DEBUG_POSTFIX", debug_postfix);
+
     if feature_enabled("HL") {
         cfg.define("HDF5_BUILD_HL_LIB", "ON");
         let mut hdf5_hl_lib =
